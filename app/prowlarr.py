@@ -61,7 +61,9 @@ class ProwlarrClient:
             raise RuntimeError(f"Unexpected Prowlarr search response: {type(data).__name__}")
 
         releases = [
-            self._release_from_item(item, request.query) for item in data if isinstance(item, dict)
+            self._release_from_item(item, request.query, request.min_resolution)
+            for item in data
+            if isinstance(item, dict)
         ]
         releases.sort(key=lambda release: release.score.score, reverse=True)
         return releases
@@ -117,7 +119,12 @@ class ProwlarrClient:
             raise RuntimeError(f"Unexpected Prowlarr response for {path}: {type(data).__name__}")
         return [item for item in data if isinstance(item, dict)]
 
-    def _release_from_item(self, item: dict[str, Any], query: str) -> Release:
+    def _release_from_item(
+        self,
+        item: dict[str, Any],
+        query: str,
+        min_resolution: str,
+    ) -> Release:
         title = str(item.get("title") or item.get("releaseTitle") or "<untitled>")
         size = _int_or_none(item.get("size"))
         download_url = _str_or_none(item.get("downloadUrl") or item.get("downloadUrlMagnet"))
@@ -146,6 +153,7 @@ class ProwlarrClient:
                 title_match=title_match,
                 size=size,
                 download_url=download_url,
+                min_resolution=min_resolution,
             ),
         )
 

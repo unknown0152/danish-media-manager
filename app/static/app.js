@@ -1,5 +1,6 @@
 const state = {
   mediaType: "movie",
+  minResolution: "any",
   releases: [],
   quality: null,
   currentRequest: null,
@@ -16,6 +17,7 @@ const prowlarrHealthEl = document.querySelector("#prowlarrHealth");
 const requestsEl = document.querySelector("#requests");
 const searchForm = document.querySelector("#searchForm");
 const queryInput = document.querySelector("#query");
+const minResolutionInput = document.querySelector("#minResolution");
 
 document.querySelectorAll(".segmented button").forEach((button) => {
   button.addEventListener("click", () => {
@@ -33,6 +35,9 @@ searchForm.addEventListener("submit", async (event) => {
 document.querySelector("#refreshQueue").addEventListener("click", refreshQueue);
 document.querySelector("#requestBest").addEventListener("click", async () => {
   await createRequest(queryInput.value.trim());
+});
+minResolutionInput.addEventListener("change", () => {
+  state.minResolution = minResolutionInput.value;
 });
 
 async function api(path, options = {}) {
@@ -64,7 +69,12 @@ async function search(query) {
   try {
     const data = await api("/api/search", {
       method: "POST",
-      body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
+      body: JSON.stringify({
+        query,
+        media_type: state.mediaType,
+        min_resolution: state.minResolution,
+        limit: 100,
+      }),
     });
     state.releases = data.releases;
     state.quality = data.quality || null;
@@ -84,7 +94,12 @@ async function createRequest(query) {
   try {
     const data = await api("/api/requests", {
       method: "POST",
-      body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
+      body: JSON.stringify({
+        query,
+        media_type: state.mediaType,
+        min_resolution: state.minResolution,
+        limit: 100,
+      }),
     });
     state.releases = data.search.releases;
     state.quality = data.search.quality || null;

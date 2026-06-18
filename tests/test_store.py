@@ -8,7 +8,7 @@ from app.titlematch import match_title
 
 def test_store_persists_request_and_cached_release(tmp_path) -> None:
     store = Store(str(tmp_path / "test.db"))
-    request = store.create_media_request("The Batman 2022", "movie")
+    request = store.create_media_request("The Batman 2022", "movie", "2160p")
     title = "The.Batman.2022.NORDiC.2160p.BluRay.x265"
     quality = parse_quality(title)
     score = score_release(title, 20_000_000_000)
@@ -45,3 +45,4 @@ def test_store_persists_request_and_cached_release(tmp_path) -> None:
     assert '"download_url"' not in cached["release_json"]
     assert updated is not None
     assert updated["best_result_id"] == "abc123"
+    assert updated["min_resolution"] == "2160p"

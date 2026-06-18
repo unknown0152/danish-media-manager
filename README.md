@@ -16,6 +16,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Show why one release ranks above another.
 - Show accepted/rejected counts and decision warnings.
 - Show quality diagnostics for each search: resolutions, sources, accepted resolutions, and best score.
+- Enforce optional minimum quality per search/request: any, 720p+, 1080p+, or 2160p only.
 - Create persistent requests and store the current best release.
 - Rerun a request search without losing the request history.
 - Grab the stored best result manually when ready.

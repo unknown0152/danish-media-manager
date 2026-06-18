@@ -24,7 +24,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.9.0")
+app = FastAPI(title="Danish Media Manager", version="0.10.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -184,12 +184,17 @@ def create_request(
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
-    row = request_store.create_media_request(request.query, request.media_type)
+    row = request_store.create_media_request(
+        request.query,
+        request.media_type,
+        request.min_resolution,
+    )
     request_id = int(row["id"])
     search_request = SearchRequest(
         query=request.query,
         media_type=request.media_type,
         limit=request.limit,
+        min_resolution=request.min_resolution,
     )
     try:
         releases = prowlarr_client.search(search_request)
@@ -270,7 +275,11 @@ def rerun_request_search(
     row = request_store.get_media_request(request_id)
     if not row:
         raise HTTPException(status_code=404, detail="Request not found")
-    search_request = SearchRequest(query=str(row["query"]), media_type=row["media_type"])
+    search_request = SearchRequest(
+        query=str(row["query"]),
+        media_type=row["media_type"],
+        min_resolution=str(row.get("min_resolution") or "any"),  # type: ignore[arg-type]
+    )
     try:
         releases = prowlarr_client.search(search_request)
     except Exception as exc:

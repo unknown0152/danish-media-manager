@@ -116,6 +116,22 @@ def test_wrong_year_is_rejected() -> None:
     assert any(reason.startswith("Wrong year") for reason in decision.rejections)
 
 
+def test_minimum_resolution_rejects_lower_quality() -> None:
+    quality = parse_quality("The.Batman.2022.NORDiC.1080p.BluRay.x265")
+    score = score_release("The.Batman.2022.NORDiC.1080p.BluRay.x265", 20_000_000_000)
+    decision = decide_release(
+        score=score,
+        quality=quality,
+        title_match=match_title("The Batman 2022", "The.Batman.2022.NORDiC.1080p.BluRay.x265"),
+        size=20_000_000_000,
+        download_url="http://example.invalid/file.nzb",
+        min_resolution="2160p",
+    )
+
+    assert not decision.grab_allowed
+    assert "Below requested minimum resolution: 1080p < 2160p" in decision.rejections
+
+
 def test_indexer_summaries_count_results_by_source() -> None:
     releases = []
     for title, indexer, indexer_id in [

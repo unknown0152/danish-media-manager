@@ -23,7 +23,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -119,17 +120,22 @@ button:disabled {
 
 form {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr 140px auto auto;
   gap: 10px;
 }
 
-input {
+input,
+select {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #10141b;
   color: var(--text);
   padding: 0 12px;
+}
+
+select {
+  min-height: 38px;
 }
 
 .grid {

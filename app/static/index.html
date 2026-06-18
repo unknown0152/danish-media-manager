@@ -23,6 +23,12 @@
         </div>
         <form id="searchForm">
           <input id="query" name="query" placeholder="Search title" autocomplete="off" required />
+          <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
+            <option value="any">Any quality</option>
+            <option value="720p">720p+</option>
+            <option value="1080p">1080p+</option>
+            <option value="2160p">2160p only</option>
+          </select>
           <button type="submit">Search</button>
           <button id="requestBest" type="button">Request Best</button>
         </form>

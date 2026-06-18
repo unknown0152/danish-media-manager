@@ -10,6 +10,7 @@ def decide_release(
     title_match: TitleMatch | None = None,
     size: int | None,
     download_url: str | None,
+    min_resolution: str = "any",
 ) -> Decision:
     rejections: list[str] = []
     warnings: list[str] = []
@@ -19,6 +20,11 @@ def decide_release(
 
     if quality.is_bad_source:
         rejections.append("Rejected bad source quality")
+
+    if not _meets_min_resolution(quality.resolution, min_resolution):
+        rejections.append(
+            f"Below requested minimum resolution: {quality.resolution or 'unknown'} < {min_resolution}"
+        )
 
     if title_match:
         if title_match.year_matches is False:
@@ -56,3 +62,16 @@ def decide_release(
         rejections=rejections,
         warnings=warnings,
     )
+
+
+def _meets_min_resolution(resolution: str | None, minimum: str) -> bool:
+    if minimum == "any":
+        return True
+    order = {"720p": 720, "1080p": 1080, "2160p": 2160}
+    wanted = order.get(minimum)
+    found = order.get(resolution or "")
+    if wanted is None:
+        return True
+    if found is None:
+        return False
+    return found >= wanted

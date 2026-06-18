@@ -54,6 +54,7 @@ class Store:
                     updated_at text not null default current_timestamp,
                     query text not null,
                     media_type text not null,
+                    min_resolution text not null default 'any',
                     status text not null default 'new',
                     best_result_id text,
                     best_title text,
@@ -65,6 +66,12 @@ class Store:
                 """
             )
             self._ensure_column(conn, "release_cache", "request_id", "integer")
+            self._ensure_column(
+                conn,
+                "media_requests",
+                "min_resolution",
+                "text not null default 'any'",
+            )
 
     def _ensure_column(
         self, conn: sqlite3.Connection, table: str, column: str, definition: str
@@ -77,14 +84,19 @@ class Store:
         if column not in columns:
             conn.execute(f"alter table {table} add column {column} {definition}")
 
-    def create_media_request(self, query: str, media_type: str) -> dict[str, Any]:
+    def create_media_request(
+        self,
+        query: str,
+        media_type: str,
+        min_resolution: str = "any",
+    ) -> dict[str, Any]:
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                insert into media_requests (query, media_type)
-                values (?, ?)
+                insert into media_requests (query, media_type, min_resolution)
+                values (?, ?, ?)
                 """,
-                (query, media_type),
+                (query, media_type, min_resolution),
             )
             row = conn.execute(
                 """

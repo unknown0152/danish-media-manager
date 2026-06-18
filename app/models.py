@@ -7,18 +7,21 @@ from app.titlematch import TitleMatch
 
 
 MediaType = Literal["movie", "tv"]
+MinimumResolution = Literal["any", "720p", "1080p", "2160p"]
 
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=200)
     media_type: MediaType = "movie"
     limit: int = Field(default=100, ge=1, le=500)
+    min_resolution: MinimumResolution = "any"
 
 
 class MediaRequestCreate(BaseModel):
     query: str = Field(min_length=1, max_length=200)
     media_type: MediaType = "movie"
     limit: int = Field(default=100, ge=1, le=500)
+    min_resolution: MinimumResolution = "any"
 
 
 class MediaRequest(BaseModel):
@@ -27,6 +30,7 @@ class MediaRequest(BaseModel):
     updated_at: str
     query: str
     media_type: MediaType
+    min_resolution: MinimumResolution = "any"
     status: str
     best_result_id: str | None = None
     best_title: str | None = None
