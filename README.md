@@ -21,6 +21,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Send a selected release URL to AltMount through the SAB-compatible API.
 - Show normalized AltMount download status, active queue, and recent history.
 - Show per-search Prowlarr indexer result counts and best scores.
+- Check whether AltMount import paths are visible and using symlinks instead of regular files.
 - Show safe Prowlarr indexer diagnostics.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.
@@ -38,6 +39,7 @@ GET  /api/requests
 POST /api/requests/{id}/search
 POST /api/requests/{id}/grab-best
 GET  /api/downloads
+GET  /api/import-health
 ```
 
 ## Run Locally
@@ -90,6 +92,9 @@ The container expects to be on the same Docker network as `prowlarr` and
 | `PROWLARR_API_KEY` | empty | Prowlarr API key |
 | `ALTMOUNT_URL` | `http://danish-intelligence:9699/altmount` | SAB-compatible AltMount proxy URL |
 | `ALTMOUNT_API_KEY` | empty | AltMount/SAB API key |
+| `ALTMOUNT_IMPORT_DIR` | `/mnt/altmount-import` | Read-only path inspected for symlink imports |
+| `ALTMOUNT_MOUNT_PATH` | `/mnt/altmount` | Read-only AltMount FUSE path expected as symlink target |
+| `MEDIA_ROOT` | `/media` | Read-only media root visibility check |
 | `DATABASE_PATH` | `/data/danish-media-manager.db` | SQLite history DB |
 
 ## Roadmap
@@ -97,5 +102,4 @@ The container expects to be on the same Docker network as `prowlarr` and
 - Add metadata lookup for movie/TV posters and exact year matching.
 - Add provider/indexer failure tracking.
 - Add per-folder request targets.
-- Add import/symlink verification.
 - Add user accounts only if this becomes exposed outside the LAN.

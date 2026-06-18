@@ -4,10 +4,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.altmount import AltMountClient
 from app.config import Settings, get_settings
+from app.import_health import check_import_health
 from app.models import (
     DownloadStatus,
     GrabRequest,
     GrabResponse,
+    ImportHealth,
     IndexerSearchSummary,
     MediaRequest,
     MediaRequestCreate,
@@ -20,7 +22,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.6.0")
+app = FastAPI(title="Danish Media Manager", version="0.7.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -305,6 +307,11 @@ def downloads(altmount_client: AltMountClient = Depends(altmount)) -> DownloadSt
         return altmount_client.downloads()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/import-health", response_model=ImportHealth)
+def import_health(settings: Settings = Depends(get_settings)) -> ImportHealth:
+    return check_import_health(settings)
 
 
 @app.get("/api/indexers")

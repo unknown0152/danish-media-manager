@@ -133,3 +133,27 @@ class DownloadStatus(BaseModel):
     size_left_mb: float | None = None
     queue: list[DownloadItem] = Field(default_factory=list)
     history: list[DownloadItem] = Field(default_factory=list)
+
+
+class PathProbe(BaseModel):
+    path: str
+    exists: bool
+    is_dir: bool = False
+    readable: bool = False
+
+
+class SymlinkProbe(BaseModel):
+    path: str
+    target: str | None = None
+    target_exists: bool = False
+    target_under_mount: bool = False
+
+
+class ImportHealth(BaseModel):
+    import_dir: PathProbe
+    mount_path: PathProbe
+    media_root: PathProbe
+    symlink_count: int = 0
+    regular_file_count: int = 0
+    sample_symlinks: list[SymlinkProbe] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)

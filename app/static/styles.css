@@ -246,6 +246,7 @@ pre {
 }
 
 .downloads,
+.health,
 .grabs,
 .requests {
   display: grid;
@@ -277,6 +278,24 @@ pre {
 .download-item {
   color: var(--text);
   overflow-wrap: anywhere;
+}
+
+.probe {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 8px;
+  background: #10141b;
+  overflow-wrap: anywhere;
+}
+
+.probe.ok {
+  border-color: rgba(91, 210, 138, 0.45);
+  color: var(--good);
+}
+
+.probe.warn {
+  border-color: rgba(240, 191, 76, 0.45);
+  color: var(--warn);
 }
 
 .request {

@@ -18,6 +18,12 @@ class Settings(BaseSettings):
         alias="ALTMOUNT_URL",
     )
     altmount_api_key: str = Field(default="", alias="ALTMOUNT_API_KEY")
+    altmount_import_dir: str = Field(
+        default="/mnt/altmount-import",
+        alias="ALTMOUNT_IMPORT_DIR",
+    )
+    altmount_mount_path: str = Field(default="/mnt/altmount", alias="ALTMOUNT_MOUNT_PATH")
+    media_root: str = Field(default="/media", alias="MEDIA_ROOT")
 
     request_timeout_seconds: float = Field(default=20.0, alias="REQUEST_TIMEOUT_SECONDS")
 
@@ -25,4 +31,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

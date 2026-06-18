@@ -8,6 +8,7 @@ const statusEl = document.querySelector("#status");
 const searchSummaryEl = document.querySelector("#searchSummary");
 const resultsEl = document.querySelector("#results");
 const downloadsEl = document.querySelector("#downloads");
+const importHealthEl = document.querySelector("#importHealth");
 const grabsEl = document.querySelector("#grabs");
 const indexersEl = document.querySelector("#indexers");
 const requestsEl = document.querySelector("#requests");
@@ -198,6 +199,7 @@ async function refreshQueue() {
   try {
     const downloads = await api("/api/downloads");
     renderDownloads(downloads);
+    await refreshImportHealth();
   } catch (error) {
     downloadsEl.innerHTML = `<div>Downloads failed: ${escapeHtml(error.message)}</div>`;
   }
@@ -245,6 +247,38 @@ function renderDownloadItem(item) {
       <div>${escapeHtml(item.name)}</div>
       <div class="meta">${escapeHtml(meta)}</div>
     </div>
+  `;
+}
+
+async function refreshImportHealth() {
+  try {
+    const health = await api("/api/import-health");
+    renderImportHealth(health);
+  } catch (error) {
+    importHealthEl.innerHTML = `<div>Import health failed: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderImportHealth(health) {
+  const warnings = health.warnings || [];
+  const probes = [health.import_dir, health.mount_path, health.media_root]
+    .map((probe) => {
+      const state = probe.exists && probe.is_dir && probe.readable ? "ok" : "warn";
+      return `<div class="probe ${state}">${escapeHtml(probe.path)} · ${probe.readable ? "ready" : "not ready"}</div>`;
+    })
+    .join("");
+  const samples = (health.sample_symlinks || [])
+    .slice(0, 3)
+    .map((item) => {
+      const state = item.target_under_mount && item.target_exists ? "ok" : "warn";
+      return `<div class="probe ${state}">${escapeHtml(item.path)} -> ${escapeHtml(item.target || "missing")}</div>`;
+    })
+    .join("");
+  importHealthEl.innerHTML = `
+    ${probes}
+    <div class="meta">${health.symlink_count} symlinks · ${health.regular_file_count} regular files</div>
+    ${warnings.map((warning) => `<div class="probe warn">${escapeHtml(warning)}</div>`).join("")}
+    ${samples}
   `;
 }
 
@@ -321,6 +355,7 @@ function escapeHtml(value) {
 
 loadStatus();
 refreshQueue();
+refreshImportHealth();
 refreshGrabs();
 refreshIndexers();
 refreshRequests();
