@@ -28,10 +28,10 @@ from app.models import (
 from app.prowlarr import ProwlarrClient
 from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
-from app.targets import all_targets, target_for_path
+from app.targets import all_targets, exact_target_for_path, target_for_path
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.22.0")
+app = FastAPI(title="Danish Media Manager", version="0.23.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -520,6 +520,15 @@ def sync_seerr_requests(
         if existing:
             result.skipped += 1
             continue
+        root_folder = _str_or_none(item.get("rootFolder"))
+        target = exact_target_for_path(settings, media_type, root_folder)
+        if not target:
+            result.skipped += 1
+            if root_folder:
+                result.errors.append(f"Seerr request {request_id}: unconfigured rootFolder {root_folder}")
+            else:
+                result.errors.append(f"Seerr request {request_id}: missing rootFolder")
+            continue
         try:
             metadata_result = seerr_client.metadata_for_request(item)
             if not metadata_result:
@@ -533,7 +542,7 @@ def sync_seerr_requests(
                 media_type=media_type,
                 min_resolution="1080p",
                 limit=100,
-                target_path=_str_or_none(item.get("rootFolder")),
+                target_path=target.path,
                 settings=settings,
                 metadata_result=metadata_result,
                 di_client=di_client,

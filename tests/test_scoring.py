@@ -35,6 +35,23 @@ def test_plain_nordic_counts_as_likely_danish_subtitles() -> None:
     assert "Likely Danish subtitles" in scored.reasons
 
 
+def test_no_danish_signal_is_not_grabbable_even_when_quality_is_good() -> None:
+    title = "Chicago.Med.2015.S10E11.GERMAN.5.1.DL.DTS.1080p.Bluray.Remux.h264"
+    quality = parse_quality(title)
+    score = score_release(title, 10_000_000_000)
+    decision = decide_release(
+        score=score,
+        quality=quality,
+        title_match=match_title("Chicago Med 2015", title),
+        size=10_000_000_000,
+        download_url="http://example.invalid/file.nzb",
+        min_resolution="1080p",
+    )
+
+    assert not decision.grab_allowed
+    assert "No Danish/Nordic signal" in decision.rejections
+
+
 def test_hdr_details_are_parsed() -> None:
     quality = parse_quality(
         "Movie.2026.NORDiC.2160p.UHD.BluRay.DV.HDR10Plus.TrueHD.Atmos.x265"

@@ -39,3 +39,12 @@ def target_for_path(settings: Settings, media_type: MediaType, path: str | None)
             if target.path == path:
                 return target
     return targets[0] if targets else None
+
+
+def exact_target_for_path(settings: Settings, media_type: MediaType, path: str | None) -> MediaTarget | None:
+    if not path:
+        return None
+    for target in targets_for(settings, media_type):
+        if target.path == path:
+            return target
+    return None

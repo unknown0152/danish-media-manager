@@ -5,7 +5,7 @@ from app.metadata import (
     metadata_from_seerr_item,
     metadata_from_sonarr_item,
 )
-from app.targets import parse_targets, target_for_path
+from app.targets import exact_target_for_path, parse_targets, target_for_path
 
 
 def test_local_metadata_extracts_title_and_year() -> None:
@@ -32,6 +32,14 @@ def test_target_for_path_defaults_to_first_target() -> None:
     assert target_for_path(settings, "movie", "/media/danish-movies").label == "Danish"
     assert target_for_path(settings, "movie", None).path == "/media/movies"
     assert target_for_path(settings, "movie", "/not/allowed").path == "/media/movies"
+
+
+def test_exact_target_for_path_does_not_default() -> None:
+    settings = Settings(MOVIE_TARGETS="Movies=/media/movies,Danish=/media/danish-movies")
+
+    assert exact_target_for_path(settings, "movie", "/media/danish-movies").label == "Danish"
+    assert exact_target_for_path(settings, "movie", None) is None
+    assert exact_target_for_path(settings, "movie", "/not/allowed") is None
 
 
 def test_radarr_metadata_payload_maps_to_common_metadata() -> None:

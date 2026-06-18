@@ -43,7 +43,7 @@ def decide_release(
         or quality.has_multi_subtitles
         or quality.has_nordic_signal
     ):
-        warnings.append("No Danish/Nordic signal")
+        rejections.append("No Danish/Nordic signal")
 
     if size:
         gib = size / 1024 / 1024 / 1024
