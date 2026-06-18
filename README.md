@@ -8,7 +8,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 ## Current MVP
 
 - Search Prowlarr for movies or TV.
-- Look up lightweight metadata for exact year matching; add posters/overview when `TMDB_API_KEY` is set.
+- Look up lightweight metadata for exact year matching; use Seerr, Radarr, Sonarr, or TMDB for posters/overview when configured.
 - Score releases with visible Danish-audio/subtitle reasoning.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
@@ -104,6 +104,12 @@ The container expects to be on the same Docker network as `prowlarr` and
 | --- | --- | --- |
 | `PROWLARR_URL` | `http://prowlarr:9696` | Prowlarr API base URL |
 | `PROWLARR_API_KEY` | empty | Prowlarr API key |
+| `RADARR_URL` | `http://radarr:7878` | Optional Radarr API base URL for movie metadata lookup |
+| `RADARR_API_KEY` | empty | Optional Radarr API key |
+| `SONARR_URL` | `http://sonarr:8989` | Optional Sonarr API base URL for TV metadata lookup |
+| `SONARR_API_KEY` | empty | Optional Sonarr API key |
+| `SEERR_URL` | `http://seerr:5055` | Optional Seerr/Jellyseerr API base URL for metadata lookup |
+| `SEERR_API_KEY` | empty | Optional Seerr/Jellyseerr API key |
 | `ALTMOUNT_URL` | `http://danish-intelligence:9699/altmount` | SAB-compatible AltMount proxy URL |
 | `ALTMOUNT_API_KEY` | empty | AltMount/SAB API key |
 | `ALTMOUNT_IMPORT_DIR` | `/mnt/altmount-import` | Read-only path inspected for symlink imports |
@@ -111,7 +117,7 @@ The container expects to be on the same Docker network as `prowlarr` and
 | `MEDIA_ROOT` | `/media` | Read-only media root visibility check |
 | `DATABASE_PATH` | `/data/danish-media-manager.db` | SQLite history DB |
 | `ALLOW_DIRECT_DOWNLOAD_URLS` | `false` | Set to `true` only for manual debugging of raw NZB URLs |
-| `TMDB_API_KEY` | empty | Optional TMDB API key for posters, overview, and external metadata IDs |
+| `TMDB_API_KEY` | empty | Optional TMDB fallback API key for posters, overview, and external metadata IDs |
 | `MOVIE_TARGETS` | built-in movie folders | Comma list like `Movies=/media/movies,Danish=/media/danish-movies` |
 | `TV_TARGETS` | built-in TV folders | Comma list like `TV=/media/tv,Danish TV=/media/danish-tv` |
 
