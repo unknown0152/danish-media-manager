@@ -1,5 +1,5 @@
 from app.decision import decide_release
-from app.models import Release
+from app.models import MetadataResult, Release
 from app.quality import parse_quality
 from app.scoring import score_release
 from app.store import Store
@@ -8,7 +8,18 @@ from app.titlematch import match_title
 
 def test_store_persists_request_and_cached_release(tmp_path) -> None:
     store = Store(str(tmp_path / "test.db"))
-    request = store.create_media_request("The Batman 2022", "movie", "2160p")
+    request = store.create_media_request(
+        "The Batman 2022",
+        "movie",
+        "2160p",
+        target_path="/media/danish-movies",
+        target_label="Danish Movies",
+        metadata=MetadataResult(
+            title="The Batman",
+            year=2022,
+            poster_url="https://image.tmdb.org/t/p/w342/example.jpg",
+        ),
+    )
     title = "The.Batman.2022.NORDiC.2160p.BluRay.x265"
     quality = parse_quality(title)
     score = score_release(title, 20_000_000_000)
@@ -46,3 +57,7 @@ def test_store_persists_request_and_cached_release(tmp_path) -> None:
     assert updated is not None
     assert updated["best_result_id"] == "abc123"
     assert updated["min_resolution"] == "2160p"
+    assert updated["target_path"] == "/media/danish-movies"
+    assert updated["target_label"] == "Danish Movies"
+    assert updated["metadata_title"] == "The Batman"
+    assert updated["metadata_year"] == 2022

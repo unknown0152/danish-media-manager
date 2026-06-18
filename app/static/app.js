@@ -7,9 +7,12 @@ const state = {
   warningSummary: {},
   currentRequest: null,
   acceptedOnly: false,
+  metadata: null,
+  targets: { movie: [], tv: [] },
 };
 
 const statusEl = document.querySelector("#status");
+const metadataEl = document.querySelector("#metadata");
 const searchSummaryEl = document.querySelector("#searchSummary");
 const resultsEl = document.querySelector("#results");
 const downloadsEl = document.querySelector("#downloads");
@@ -21,6 +24,7 @@ const requestsEl = document.querySelector("#requests");
 const searchForm = document.querySelector("#searchForm");
 const queryInput = document.querySelector("#query");
 const minResolutionInput = document.querySelector("#minResolution");
+const targetPathInput = document.querySelector("#targetPath");
 const acceptedOnlyInput = document.querySelector("#acceptedOnly");
 
 document.querySelectorAll(".segmented button").forEach((button) => {
@@ -28,6 +32,7 @@ document.querySelectorAll(".segmented button").forEach((button) => {
     document.querySelectorAll(".segmented button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     state.mediaType = button.dataset.type;
+    renderTargetOptions();
   });
 });
 
@@ -86,13 +91,16 @@ async function search(query) {
     });
     state.releases = data.releases;
     state.quality = data.quality || null;
+    state.metadata = data.metadata || null;
     state.rejectionSummary = data.rejection_summary || {};
     state.warningSummary = data.warning_summary || {};
     state.currentRequest = null;
     statusEl.textContent = `${data.total} results · ${data.accepted} accepted · ${data.rejected} rejected`;
+    renderMetadata();
     renderSearchSummary(data.indexers || []);
     renderResults();
   } catch (error) {
+    metadataEl.innerHTML = "";
     searchSummaryEl.innerHTML = "";
     resultsEl.innerHTML = `<p>Search failed: ${escapeHtml(error.message)}</p>`;
   }
@@ -108,22 +116,71 @@ async function createRequest(query) {
         query,
         media_type: state.mediaType,
         min_resolution: state.minResolution,
+        target_path: targetPathInput.value || null,
         limit: 100,
       }),
     });
     state.releases = data.search.releases;
     state.quality = data.search.quality || null;
+    state.metadata = data.search.metadata || null;
     state.rejectionSummary = data.search.rejection_summary || {};
     state.warningSummary = data.search.warning_summary || {};
     state.currentRequest = data.request;
     statusEl.textContent = `Request #${data.request.id} · ${data.search.total} results · ${data.search.accepted} accepted`;
+    renderMetadata();
     renderSearchSummary(data.search.indexers || []);
     renderResults();
     await refreshRequests();
   } catch (error) {
+    metadataEl.innerHTML = "";
     searchSummaryEl.innerHTML = "";
     resultsEl.innerHTML = `<p>Request failed: ${escapeHtml(error.message)}</p>`;
   }
+}
+
+async function loadTargets() {
+  try {
+    state.targets = await api("/api/targets");
+    renderTargetOptions();
+  } catch (error) {
+    targetPathInput.innerHTML = `<option value="">Default folder</option>`;
+  }
+}
+
+function renderTargetOptions() {
+  const targets = state.targets[state.mediaType] || [];
+  if (!targets.length) {
+    targetPathInput.innerHTML = `<option value="">Default folder</option>`;
+    return;
+  }
+  targetPathInput.innerHTML = targets
+    .map((target) => `<option value="${escapeHtml(target.path)}">${escapeHtml(target.label)}</option>`)
+    .join("");
+}
+
+function renderMetadata() {
+  const metadata = state.metadata;
+  if (!metadata) {
+    metadataEl.innerHTML = "";
+    return;
+  }
+  const year = metadata.year ? ` (${metadata.year})` : "";
+  const source = metadata.source ? ` · ${metadata.source}` : "";
+  const poster = metadata.poster_url
+    ? `<img src="${escapeHtml(metadata.poster_url)}" alt="" loading="lazy" />`
+    : "";
+  metadataEl.innerHTML = `
+    ${poster}
+    <div>
+      <div class="title">${escapeHtml(metadata.title)}${escapeHtml(year)}</div>
+      <div class="meta">Exact year ${escapeHtml(metadata.year || "unknown")}${escapeHtml(source)}</div>
+      ${
+        metadata.overview
+          ? `<div class="meta metadata-overview">${escapeHtml(metadata.overview)}</div>`
+          : ""
+      }
+    </div>
+  `;
 }
 
 function renderSearchSummary(indexers) {
@@ -420,6 +477,10 @@ async function refreshRequests() {
     requestsEl.innerHTML = requests
       .map((request) => {
         const best = request.best_title ? `<div class="meta">${escapeHtml(request.best_title)}</div>` : "";
+        const target = request.target_label || request.target_path || "default folder";
+        const metadata = [request.metadata_title, request.metadata_year ? `(${request.metadata_year})` : ""]
+          .filter(Boolean)
+          .join(" ");
         const score =
           request.best_score === null || request.best_score === undefined ? "" : ` · ${request.best_score}`;
         return `
@@ -428,6 +489,7 @@ async function refreshRequests() {
             <div class="meta">${escapeHtml(request.media_type)} · ${escapeHtml(request.status)} · ${
               request.accepted
             }/${request.total} accepted</div>
+            <div class="meta">${escapeHtml(target)}${metadata ? ` · ${escapeHtml(metadata)}` : ""}</div>
             ${best}
             <button type="button" data-request-id="${request.id}" ${
               request.best_result_id ? "" : "disabled"
@@ -461,6 +523,7 @@ function escapeHtml(value) {
 }
 
 loadStatus();
+loadTargets();
 refreshQueue();
 refreshImportHealth();
 refreshGrabs();

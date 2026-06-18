@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from app.models import GrabRequest, Release
+from app.models import GrabRequest, MetadataResult, Release
 
 
 class Store:
@@ -55,6 +55,11 @@ class Store:
                     query text not null,
                     media_type text not null,
                     min_resolution text not null default 'any',
+                    target_path text,
+                    target_label text,
+                    metadata_title text,
+                    metadata_year integer,
+                    metadata_poster_url text,
                     status text not null default 'new',
                     best_result_id text,
                     best_title text,
@@ -72,6 +77,11 @@ class Store:
                 "min_resolution",
                 "text not null default 'any'",
             )
+            self._ensure_column(conn, "media_requests", "target_path", "text")
+            self._ensure_column(conn, "media_requests", "target_label", "text")
+            self._ensure_column(conn, "media_requests", "metadata_title", "text")
+            self._ensure_column(conn, "media_requests", "metadata_year", "integer")
+            self._ensure_column(conn, "media_requests", "metadata_poster_url", "text")
 
     def _ensure_column(
         self, conn: sqlite3.Connection, table: str, column: str, definition: str
@@ -89,14 +99,29 @@ class Store:
         query: str,
         media_type: str,
         min_resolution: str = "any",
+        target_path: str | None = None,
+        target_label: str | None = None,
+        metadata: MetadataResult | None = None,
     ) -> dict[str, Any]:
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                insert into media_requests (query, media_type, min_resolution)
-                values (?, ?, ?)
+                insert into media_requests (
+                    query, media_type, min_resolution, target_path, target_label,
+                    metadata_title, metadata_year, metadata_poster_url
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (query, media_type, min_resolution),
+                (
+                    query,
+                    media_type,
+                    min_resolution,
+                    target_path,
+                    target_label,
+                    metadata.title if metadata else None,
+                    metadata.year if metadata else None,
+                    metadata.poster_url if metadata else None,
+                ),
             )
             row = conn.execute(
                 """

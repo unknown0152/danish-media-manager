@@ -120,7 +120,7 @@ button:disabled {
 
 form {
   display: grid;
-  grid-template-columns: 1fr 140px auto auto;
+  grid-template-columns: 1fr 140px 180px auto auto;
   gap: 10px;
 }
 
@@ -154,6 +154,30 @@ select {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.metadata-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.metadata-card:empty {
+  display: none;
+}
+
+.metadata-card img {
+  width: 76px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.metadata-overview {
+  max-width: 780px;
 }
 
 .filter-toggle {

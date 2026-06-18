@@ -15,6 +15,7 @@ class SearchRequest(BaseModel):
     media_type: MediaType = "movie"
     limit: int = Field(default=100, ge=1, le=500)
     min_resolution: MinimumResolution = "any"
+    expected_year: int | None = None
 
 
 class MediaRequestCreate(BaseModel):
@@ -22,6 +23,22 @@ class MediaRequestCreate(BaseModel):
     media_type: MediaType = "movie"
     limit: int = Field(default=100, ge=1, le=500)
     min_resolution: MinimumResolution = "any"
+    target_path: str | None = None
+
+
+class MetadataResult(BaseModel):
+    title: str
+    year: int | None = None
+    overview: str | None = None
+    poster_url: str | None = None
+    source: str = "local"
+    external_id: str | None = None
+
+
+class MediaTarget(BaseModel):
+    media_type: MediaType
+    label: str
+    path: str
 
 
 class MediaRequest(BaseModel):
@@ -31,6 +48,11 @@ class MediaRequest(BaseModel):
     query: str
     media_type: MediaType
     min_resolution: MinimumResolution = "any"
+    target_path: str | None = None
+    target_label: str | None = None
+    metadata_title: str | None = None
+    metadata_year: int | None = None
+    metadata_poster_url: str | None = None
     status: str
     best_result_id: str | None = None
     best_title: str | None = None
@@ -102,6 +124,7 @@ class QualitySearchSummary(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     media_type: MediaType
+    metadata: MetadataResult | None = None
     total: int
     accepted: int
     rejected: int

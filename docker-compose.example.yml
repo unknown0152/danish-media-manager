@@ -1,6 +1,6 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.15.0
+    image: ghcr.io/unknown0152/danish-media-manager:v0.16.0
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696
@@ -12,6 +12,7 @@ services:
       MEDIA_ROOT: /media
       DATABASE_PATH: /data/danish-media-manager.db
       ALLOW_DIRECT_DOWNLOAD_URLS: "false"
+      TMDB_API_KEY: ""
     volumes:
       - ./data:/data
       - /mnt:/mnt:ro,rshared

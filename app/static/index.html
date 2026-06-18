@@ -29,6 +29,7 @@
             <option value="1080p">1080p+</option>
             <option value="2160p">2160p only</option>
           </select>
+          <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
           <button type="submit">Search</button>
           <button id="requestBest" type="button">Request Best</button>
         </form>
@@ -37,6 +38,7 @@
       <section class="grid">
         <div>
           <h2>Results</h2>
+          <div id="metadata" class="metadata-card"></div>
           <label class="filter-toggle">
             <input id="acceptedOnly" type="checkbox" />
             Accepted only

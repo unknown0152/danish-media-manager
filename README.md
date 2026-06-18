@@ -8,12 +8,14 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 ## Current MVP
 
 - Search Prowlarr for movies or TV.
+- Look up lightweight metadata for exact year matching; add posters/overview when `TMDB_API_KEY` is set.
 - Score releases with visible Danish-audio/subtitle reasoning.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
 - Parse HDR details including DV and HDR10+.
 - Prefer 2160p HDR/Dolby Vision over 2160p SDR when Danish/NORDiC signals are close.
 - Parse title/year matching and reject wrong-year releases.
+- Use metadata year for exact release-year rejection even when the typed query has no year.
 - Show why one release ranks above another.
 - Sort results best-first by accepted state, score, resolution, source, size, and age.
 - Show accepted/rejected counts and decision warnings.
@@ -24,6 +26,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Block raw direct download URLs by default; normal grabs must come from cached search results.
 - Filter the result list to accepted releases only.
 - Create persistent requests and store the current best release.
+- Store a target media folder on each request.
 - Rerun a request search without losing the request history.
 - Grab the stored best result manually when ready.
 - Send a selected release URL to AltMount through the SAB-compatible API.
@@ -50,6 +53,7 @@ POST /api/requests/{id}/grab-best
 GET  /api/downloads
 GET  /api/import-health
 GET  /api/prowlarr-diagnostics
+GET  /api/targets
 ```
 
 ## Run Locally
@@ -107,9 +111,10 @@ The container expects to be on the same Docker network as `prowlarr` and
 | `MEDIA_ROOT` | `/media` | Read-only media root visibility check |
 | `DATABASE_PATH` | `/data/danish-media-manager.db` | SQLite history DB |
 | `ALLOW_DIRECT_DOWNLOAD_URLS` | `false` | Set to `true` only for manual debugging of raw NZB URLs |
+| `TMDB_API_KEY` | empty | Optional TMDB API key for posters, overview, and external metadata IDs |
+| `MOVIE_TARGETS` | built-in movie folders | Comma list like `Movies=/media/movies,Danish=/media/danish-movies` |
+| `TV_TARGETS` | built-in TV folders | Comma list like `TV=/media/tv,Danish TV=/media/danish-tv` |
 
 ## Roadmap
 
-- Add metadata lookup for movie/TV posters and exact year matching.
-- Add per-folder request targets.
 - Add user accounts only if this becomes exposed outside the LAN.

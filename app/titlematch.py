@@ -48,14 +48,14 @@ def title_tokens(text: str) -> set[str]:
     return {token for token in clean_title(text).split() if token and token not in NOISE}
 
 
-def match_title(query: str, release_title: str) -> TitleMatch:
+def match_title(query: str, release_title: str, expected_year: int | None = None) -> TitleMatch:
     query_tokens = title_tokens(query)
     release_tokens = title_tokens(release_title)
     overlap = 0.0
     if query_tokens:
         overlap = len(query_tokens & release_tokens) / len(query_tokens)
 
-    query_year = parse_year(query)
+    query_year = expected_year or parse_year(query)
     release_year = parse_year(release_title)
     year_matches = None
     if query_year and release_year:
@@ -68,4 +68,3 @@ def match_title(query: str, release_title: str) -> TitleMatch:
         token_overlap=overlap,
         year_matches=year_matches,
     )
-

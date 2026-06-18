@@ -139,6 +139,25 @@ def test_wrong_year_is_rejected() -> None:
     assert any(reason.startswith("Wrong year") for reason in decision.rejections)
 
 
+def test_metadata_expected_year_rejects_wrong_release_year_when_query_has_no_year() -> None:
+    quality = parse_quality("The.Batman.2021.NORDiC.2160p.BluRay.x265")
+    score = score_release("The.Batman.2021.NORDiC.2160p.BluRay.x265", 20_000_000_000)
+    decision = decide_release(
+        score=score,
+        quality=quality,
+        title_match=match_title(
+            "The Batman",
+            "The.Batman.2021.NORDiC.2160p.BluRay.x265",
+            expected_year=2022,
+        ),
+        size=20_000_000_000,
+        download_url="http://example.invalid/file.nzb",
+    )
+
+    assert not decision.grab_allowed
+    assert any(reason.startswith("Wrong year") for reason in decision.rejections)
+
+
 def test_minimum_resolution_rejects_lower_quality() -> None:
     quality = parse_quality("The.Batman.2022.NORDiC.1080p.BluRay.x265")
     score = score_release("The.Batman.2022.NORDiC.1080p.BluRay.x265", 20_000_000_000)

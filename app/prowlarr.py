@@ -61,7 +61,12 @@ class ProwlarrClient:
             raise RuntimeError(f"Unexpected Prowlarr search response: {type(data).__name__}")
 
         releases = [
-            self._release_from_item(item, request.query, request.min_resolution)
+            self._release_from_item(
+                item,
+                request.query,
+                request.min_resolution,
+                request.expected_year,
+            )
             for item in data
             if isinstance(item, dict)
         ]
@@ -124,6 +129,7 @@ class ProwlarrClient:
         item: dict[str, Any],
         query: str,
         min_resolution: str,
+        expected_year: int | None,
     ) -> Release:
         title = str(item.get("title") or item.get("releaseTitle") or "<untitled>")
         size = _int_or_none(item.get("size"))
@@ -131,7 +137,7 @@ class ProwlarrClient:
         result_id = _result_id(title, _str_or_none(item.get("guid")), download_url)
         quality = parse_quality(title)
         score = score_release(title, size)
-        title_match = match_title(query, title)
+        title_match = match_title(query, title, expected_year=expected_year)
         return Release(
             result_id=result_id,
             title=title,

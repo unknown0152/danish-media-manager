@@ -5,15 +5,18 @@ from fastapi.staticfiles import StaticFiles
 from app.altmount import AltMountClient
 from app.config import Settings, get_settings
 from app.import_health import check_import_health
+from app.metadata import MetadataClient
 from app.models import (
     DownloadStatus,
     GrabRequest,
     GrabResponse,
     ImportHealth,
     IndexerSearchSummary,
+    MediaTarget,
     MediaRequest,
     MediaRequestCreate,
     MediaRequestResponse,
+    MetadataResult,
     ProwlarrDiagnostics,
     QualitySearchSummary,
     Release,
@@ -22,9 +25,10 @@ from app.models import (
 )
 from app.prowlarr import ProwlarrClient
 from app.store import Store
+from app.targets import all_targets, target_for_path
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.15.0")
+app = FastAPI(title="Danish Media Manager", version="0.16.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -39,12 +43,17 @@ def store(settings: Settings = Depends(get_settings)) -> Store:
     return Store(settings.database_path)
 
 
+def metadata(settings: Settings = Depends(get_settings)) -> MetadataClient:
+    return MetadataClient(settings)
+
+
 def build_search_response(
     *,
     query: str,
     media_type: str,
     releases: list[Release],
     request_store: Store,
+    metadata_result: MetadataResult | None = None,
     request_id: int | None = None,
 ) -> SearchResponse:
     for release in releases:
@@ -53,6 +62,7 @@ def build_search_response(
     return SearchResponse(
         query=query,
         media_type=media_type,  # type: ignore[arg-type]
+        metadata=metadata_result,
         total=len(releases),
         accepted=accepted,
         rejected=len(releases) - accepted,
@@ -194,9 +204,12 @@ def status(
 @app.post("/api/search", response_model=SearchResponse)
 def search(
     request: SearchRequest,
+    metadata_client: MetadataClient = Depends(metadata),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> SearchResponse:
+    metadata_result = metadata_client.lookup(request.query, request.media_type)
+    request.expected_year = metadata_result.year or request.expected_year
     try:
         releases = prowlarr_client.search(request)
     except Exception as exc:
@@ -206,19 +219,27 @@ def search(
         media_type=request.media_type,
         releases=releases,
         request_store=request_store,
+        metadata_result=metadata_result,
     )
 
 
 @app.post("/api/requests", response_model=MediaRequestResponse)
 def create_request(
     request: MediaRequestCreate,
+    settings: Settings = Depends(get_settings),
+    metadata_client: MetadataClient = Depends(metadata),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
+    metadata_result = metadata_client.lookup(request.query, request.media_type)
+    target = target_for_path(settings, request.media_type, request.target_path)
     row = request_store.create_media_request(
         request.query,
         request.media_type,
         request.min_resolution,
+        target_path=target.path if target else None,
+        target_label=target.label if target else None,
+        metadata=metadata_result,
     )
     request_id = int(row["id"])
     search_request = SearchRequest(
@@ -226,6 +247,7 @@ def create_request(
         media_type=request.media_type,
         limit=request.limit,
         min_resolution=request.min_resolution,
+        expected_year=metadata_result.year,
     )
     try:
         releases = prowlarr_client.search(search_request)
@@ -238,6 +260,7 @@ def create_request(
         media_type=request.media_type,
         releases=releases,
         request_store=request_store,
+        metadata_result=metadata_result,
         request_id=request_id,
     )
     best = best_release(releases)
@@ -312,6 +335,7 @@ def rerun_request_search(
         query=str(row["query"]),
         media_type=row["media_type"],
         min_resolution=str(row.get("min_resolution") or "any"),  # type: ignore[arg-type]
+        expected_year=row.get("metadata_year") if isinstance(row.get("metadata_year"), int) else None,
     )
     try:
         releases = prowlarr_client.search(search_request)
@@ -324,6 +348,7 @@ def rerun_request_search(
         media_type=search_request.media_type,
         releases=releases,
         request_store=request_store,
+        metadata_result=_metadata_from_row(row),
         request_id=request_id,
     )
     best = best_release(releases)
@@ -393,6 +418,11 @@ def import_health(settings: Settings = Depends(get_settings)) -> ImportHealth:
     return check_import_health(settings)
 
 
+@app.get("/api/targets", response_model=dict[str, list[MediaTarget]])
+def targets(settings: Settings = Depends(get_settings)) -> dict[str, list[MediaTarget]]:
+    return all_targets(settings)
+
+
 @app.get("/api/indexers")
 def indexers(prowlarr_client: ProwlarrClient = Depends(prowlarr)) -> list[dict[str, object]]:
     try:
@@ -414,3 +444,18 @@ def prowlarr_diagnostics(
 @app.get("/api/grabs")
 def grabs(request_store: Store = Depends(store)) -> list[dict[str, object]]:
     return request_store.recent_grabs()
+
+
+def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:
+    title = row.get("metadata_title")
+    if not isinstance(title, str) or not title:
+        return None
+    year = row.get("metadata_year")
+    return MetadataResult(
+        title=title,
+        year=year if isinstance(year, int) else None,
+        poster_url=row.get("metadata_poster_url")
+        if isinstance(row.get("metadata_poster_url"), str)
+        else None,
+        source="stored",
+    )
