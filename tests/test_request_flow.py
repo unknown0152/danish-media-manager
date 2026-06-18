@@ -4,7 +4,9 @@ from fastapi import HTTPException
 from app.config import Settings
 from app.decision import decide_release
 from app.main import best_release, grab_cached_result
-from app.models import GrabRequest, Release
+from app.models import Decision, GrabRequest, Release, ScoreBreakdown
+from app.prowlarr import release_sort_key
+from app.quality import QualityInfo
 from app.quality import parse_quality
 from app.scoring import score_release
 from app.store import Store
@@ -118,6 +120,45 @@ def test_direct_download_urls_can_be_explicitly_enabled(tmp_path) -> None:
     assert altmount.requests[0].download_url == "http://example.invalid/manual.nzb"
 
 
+def test_release_sort_key_prefers_accepted_then_quality() -> None:
+    rejected_high_score = _manual_release(
+        title="Rejected 2160p",
+        accepted=False,
+        score=20000,
+        resolution="2160p",
+        source="remux",
+        size=90_000_000_000,
+    )
+    accepted_1080p = _manual_release(
+        title="Accepted 1080p",
+        accepted=True,
+        score=5000,
+        resolution="1080p",
+        source="web-dl",
+        size=8_000_000_000,
+    )
+    accepted_2160p = _manual_release(
+        title="Accepted 2160p",
+        accepted=True,
+        score=5000,
+        resolution="2160p",
+        source="bluray",
+        size=40_000_000_000,
+    )
+
+    sorted_releases = sorted(
+        [rejected_high_score, accepted_1080p, accepted_2160p],
+        key=release_sort_key,
+        reverse=True,
+    )
+
+    assert [release.title for release in sorted_releases] == [
+        "Accepted 2160p",
+        "Accepted 1080p",
+        "Rejected 2160p",
+    ]
+
+
 def _release(title: str, min_resolution: str = "any") -> Release:
     quality = parse_quality(title)
     score = score_release(title, 20_000_000_000)
@@ -135,4 +176,23 @@ def _release(title: str, min_resolution: str = "any") -> Release:
             download_url="http://example.invalid/file.nzb",
             min_resolution=min_resolution,
         ),
+    )
+
+
+def _manual_release(
+    *,
+    title: str,
+    accepted: bool,
+    score: int,
+    resolution: str,
+    source: str,
+    size: int,
+) -> Release:
+    return Release(
+        result_id=title,
+        title=title,
+        size=size,
+        quality=QualityInfo(resolution=resolution, source=source),  # type: ignore[arg-type]
+        score=ScoreBreakdown(score=score, verdict="good", reasons=["test"]),
+        decision=Decision(accepted=accepted, grab_allowed=accepted),
     )

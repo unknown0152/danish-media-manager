@@ -14,6 +14,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Parse HDR details including DV and HDR10+.
 - Parse title/year matching and reject wrong-year releases.
 - Show why one release ranks above another.
+- Sort results best-first by accepted state, score, resolution, source, size, and age.
 - Show accepted/rejected counts and decision warnings.
 - Show quality diagnostics for each search: resolutions, sources, accepted resolutions, and best score.
 - Enforce optional minimum quality per search/request: any, 720p+, 1080p+, or 2160p only.

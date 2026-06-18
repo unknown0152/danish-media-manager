@@ -65,7 +65,7 @@ class ProwlarrClient:
             for item in data
             if isinstance(item, dict)
         ]
-        releases.sort(key=lambda release: release.score.score, reverse=True)
+        releases.sort(key=release_sort_key, reverse=True)
         return releases
 
     def indexers(self) -> list[IndexerStatus]:
@@ -170,6 +170,37 @@ def _str_or_none(value: Any) -> str | None:
         return None
     text = str(value)
     return text or None
+
+
+RESOLUTION_RANK = {
+    "2160p": 4,
+    "1080p": 3,
+    "720p": 2,
+    "sd": 1,
+    "unknown": 0,
+}
+
+SOURCE_RANK = {
+    "remux": 6,
+    "bluray": 5,
+    "web-dl": 4,
+    "webrip": 3,
+    "hdtv": 2,
+    "dvd": 1,
+    "cam": -10,
+    "unknown": 0,
+}
+
+
+def release_sort_key(release: Release) -> tuple[int, int, int, int, int, int]:
+    return (
+        1 if release.decision.grab_allowed else 0,
+        release.score.score,
+        RESOLUTION_RANK.get(release.quality.resolution, 0),
+        SOURCE_RANK.get(release.quality.source, 0),
+        release.size or 0,
+        -(release.age if release.age is not None else 999999),
+    )
 
 
 def diagnostics_from_payloads(
