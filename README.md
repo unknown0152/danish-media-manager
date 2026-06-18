@@ -44,14 +44,13 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 
 ## Seerr Workflow
 
-Seerr can remain the family/user request UI. DMM can import recent Seerr requests with `POST /api/seerr/sync`, resolve metadata from Seerr, run Danish Intelligence rich search, score releases, and store the best candidate as a DMM request. This avoids making Seerr/Radarr/Sonarr the release decision brain.
+Seerr can remain the family/user request UI. DMM imports recent Seerr requests, resolves metadata from Seerr, runs Danish Intelligence rich search, scores releases, repairs the matching Radarr/Sonarr target path/profile, and can send the best accepted candidate to AltMount. This avoids making Seerr/Radarr/Sonarr the release decision brain.
 
-The sync endpoint is intentionally manual/API-triggered for now. It does not approve, decline, or grab Seerr requests automatically.
+The background Seerr sync is enabled by default when `SEERR_API_KEY` is set. It runs every `SEERR_SYNC_INTERVAL_SECONDS` seconds, defaults to `60`, and auto-grabs when `SEERR_AUTO_GRAB=true`. The sync endpoint can still be called manually with `POST /api/seerr/sync`.
 
 ## Request Workflow
 
-The app does not auto-download in the background. A request stores the search and the best
-candidate, but a user action is still required to grab it.
+Manual DMM requests store the search and best candidate until a user clicks grab. Seerr-imported requests can auto-grab through the background sync.
 
 Useful endpoints:
 

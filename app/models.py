@@ -153,6 +153,8 @@ class SeerrSyncResult(BaseModel):
     imported: int = 0
     skipped: int = 0
     failed: int = 0
+    grabbed: int = 0
+    grab_failed: int = 0
     requests: list[MediaRequestResponse] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 

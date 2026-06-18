@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     sonarr_api_key: str = Field(default="", alias="SONARR_API_KEY")
     seerr_url: str = Field(default="http://seerr:5055", alias="SEERR_URL")
     seerr_api_key: str = Field(default="", alias="SEERR_API_KEY")
+    seerr_sync_enabled: bool = Field(default=True, alias="SEERR_SYNC_ENABLED")
+    seerr_sync_interval_seconds: int = Field(default=60, alias="SEERR_SYNC_INTERVAL_SECONDS")
+    seerr_auto_grab: bool = Field(default=True, alias="SEERR_AUTO_GRAB")
 
     altmount_url: str = Field(
         default="http://danish-intelligence:9699/altmount",
@@ -37,6 +40,11 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = Field(default=20.0, alias="REQUEST_TIMEOUT_SECONDS")
     allow_direct_download_urls: bool = Field(default=False, alias="ALLOW_DIRECT_DOWNLOAD_URLS")
+    danish_audio_profile_name: str = Field(default="Danish Audio", alias="DANISH_AUDIO_PROFILE_NAME")
+    danish_subtitles_profile_name: str = Field(
+        default="Danish Subtitles",
+        alias="DANISH_SUBTITLES_PROFILE_NAME",
+    )
     tmdb_api_key: str = Field(default="", alias="TMDB_API_KEY")
     tmdb_base_url: str = Field(default="https://api.themoviedb.org/3", alias="TMDB_BASE_URL")
     movie_targets: str = Field(

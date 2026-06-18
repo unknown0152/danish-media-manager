@@ -31,6 +31,8 @@ def test_seerr_sync_skips_requests_without_exact_target_path() -> None:
         seerr_client=seerr_client,
         di_client=object(),
         prowlarr_client=object(),
+        altmount_client=object(),
+        arr_client=object(),
         request_store=FakeStore(),
     )
 

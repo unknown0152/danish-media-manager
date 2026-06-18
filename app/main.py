@@ -1,8 +1,13 @@
+import asyncio
+import contextlib
+import json
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.altmount import AltMountClient
+from app.arr import ArrClient
 from app.config import Settings, get_settings
 from app.danish_intelligence import DanishIntelligenceClient
 from app.import_health import check_import_health
@@ -29,10 +34,50 @@ from app.prowlarr import ProwlarrClient
 from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
-import json
 
-app = FastAPI(title="Danish Media Manager", version="0.23.0")
+app = FastAPI(title="Danish Media Manager", version="0.24.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+
+@app.on_event("startup")
+async def start_seerr_sync_worker() -> None:
+    settings = get_settings()
+    if not settings.seerr_sync_enabled or not settings.seerr_api_key:
+        return
+    app.state.seerr_sync_task = asyncio.create_task(_seerr_sync_worker())
+
+
+@app.on_event("shutdown")
+async def stop_seerr_sync_worker() -> None:
+    task = getattr(app.state, "seerr_sync_task", None)
+    if task:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def _seerr_sync_worker() -> None:
+    await asyncio.sleep(20)
+    while True:
+        settings = get_settings()
+        try:
+            await asyncio.to_thread(
+                sync_seerr_requests,
+                take=20,
+                filter_name="all",
+                auto_grab=settings.seerr_auto_grab,
+                settings=settings,
+                seerr_client=SeerrClient(settings),
+                di_client=DanishIntelligenceClient(settings),
+                prowlarr_client=ProwlarrClient(settings),
+                altmount_client=AltMountClient(settings),
+                arr_client=ArrClient(settings),
+                request_store=Store(settings.database_path),
+            )
+        except Exception as exc:
+            print(f"[DMM] Seerr background sync failed: {exc}", flush=True)
+        await asyncio.sleep(max(30, settings.seerr_sync_interval_seconds))
+
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
     return ProwlarrClient(settings)
@@ -44,6 +89,10 @@ def danish_intelligence(settings: Settings = Depends(get_settings)) -> DanishInt
 
 def altmount(settings: Settings = Depends(get_settings)) -> AltMountClient:
     return AltMountClient(settings)
+
+
+def arr(settings: Settings = Depends(get_settings)) -> ArrClient:
+    return ArrClient(settings)
 
 
 def store(settings: Settings = Depends(get_settings)) -> Store:
@@ -233,6 +282,13 @@ def best_release(releases: list[Release]) -> Release | None:
     return None
 
 
+def desired_profile_name(settings: Settings, target: MediaTarget) -> str:
+    haystack = f"{target.label} {target.path}".lower()
+    if any(token in haystack for token in ("danish", "kids", "christmas", "classics")):
+        return settings.danish_audio_profile_name
+    return settings.danish_subtitles_profile_name
+
+
 def enrich_search_request(request: SearchRequest, metadata_result: MetadataResult) -> SearchRequest:
     search_query = metadata_result.title or request.query
     if metadata_result.year and str(metadata_result.year) not in search_query:
@@ -298,6 +354,42 @@ def grab_cached_result(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return GrabResponse(ok=True, message="Sent to AltMount", altmount_response=response)
+
+
+def auto_grab_seerr_request(
+    *,
+    row: dict,
+    media_type: str,
+    target: MediaTarget,
+    metadata_result: MetadataResult,
+    settings: Settings,
+    altmount_client: AltMountClient,
+    arr_client: ArrClient,
+    request_store: Store,
+) -> GrabResponse:
+    best_result_id = row.get("best_result_id")
+    if not isinstance(best_result_id, str) or not best_result_id:
+        raise RuntimeError("Request has no best result")
+    repaired = arr_client.ensure_media_target(
+        media_type=media_type,
+        metadata=metadata_result,
+        target_path=target.path,
+        profile_name=desired_profile_name(settings, target),
+    )
+    if not repaired:
+        raise RuntimeError("Arr item was not ready for target repair")
+    response = grab_cached_result(
+        GrabRequest(
+            title=str(row.get("best_title") or row.get("query") or "request"),
+            media_type=media_type,  # type: ignore[arg-type]
+            result_id=best_result_id,
+        ),
+        altmount_client=altmount_client,
+        request_store=request_store,
+        settings=settings,
+    )
+    request_store.set_media_request_status(int(row["id"]), "grabbed")
+    return response
 
 
 @app.get("/")
@@ -498,10 +590,13 @@ def grab_best_for_request(
 def sync_seerr_requests(
     take: int = 20,
     filter_name: str = "all",
+    auto_grab: bool | None = None,
     settings: Settings = Depends(get_settings),
     seerr_client: SeerrClient = Depends(seerr),
     di_client: DanishIntelligenceClient = Depends(danish_intelligence),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
+    altmount_client: AltMountClient = Depends(altmount),
+    arr_client: ArrClient = Depends(arr),
     request_store: Store = Depends(store),
 ) -> SeerrSyncResult:
     try:
@@ -510,14 +605,11 @@ def sync_seerr_requests(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     result = SeerrSyncResult()
+    should_auto_grab = settings.seerr_auto_grab if auto_grab is None else auto_grab
     for item in items:
         request_id = seerr_request_id(item)
         media_type = seerr_media_type(item)
         if not request_id or media_type not in {"movie", "tv"}:
-            result.skipped += 1
-            continue
-        existing = request_store.get_media_request_by_external("seerr", request_id)
-        if existing:
             result.skipped += 1
             continue
         root_folder = _str_or_none(item.get("rootFolder"))
@@ -528,6 +620,28 @@ def sync_seerr_requests(
                 result.errors.append(f"Seerr request {request_id}: unconfigured rootFolder {root_folder}")
             else:
                 result.errors.append(f"Seerr request {request_id}: missing rootFolder")
+            continue
+        existing = request_store.get_media_request_by_external("seerr", request_id)
+        if existing:
+            if should_auto_grab and existing.get("status") == "grab_failed" and existing.get("best_result_id"):
+                try:
+                    metadata_result = seerr_client.metadata_for_request(item)
+                    if metadata_result:
+                        auto_grab_seerr_request(
+                            row=existing,
+                            media_type=media_type,
+                            target=target,
+                            metadata_result=metadata_result,
+                            settings=settings,
+                            altmount_client=altmount_client,
+                            arr_client=arr_client,
+                            request_store=request_store,
+                        )
+                        result.grabbed += 1
+                except Exception as exc:
+                    result.grab_failed += 1
+                    result.errors.append(f"Seerr request {request_id} grab failed: {exc}")
+            result.skipped += 1
             continue
         try:
             metadata_result = seerr_client.metadata_for_request(item)
@@ -551,6 +665,23 @@ def sync_seerr_requests(
                 external_source="seerr",
                 external_id=request_id,
             )
+            if should_auto_grab:
+                try:
+                    auto_grab_seerr_request(
+                        row=response.request.model_dump(),
+                        media_type=media_type,
+                        target=target,
+                        metadata_result=metadata_result,
+                        settings=settings,
+                        altmount_client=altmount_client,
+                        arr_client=arr_client,
+                        request_store=request_store,
+                    )
+                    result.grabbed += 1
+                except Exception as exc:
+                    request_store.set_media_request_status(response.request.id, "grab_failed")
+                    result.grab_failed += 1
+                    result.errors.append(f"Seerr request {request_id} grab failed: {exc}")
         except Exception as exc:
             result.failed += 1
             result.errors.append(f"Seerr request {request_id}: {exc}")
