@@ -23,13 +23,15 @@ from app.models import (
     Release,
     SearchRequest,
     SearchResponse,
+    SeerrSyncResult,
 )
 from app.prowlarr import ProwlarrClient
+from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, target_for_path
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.21.0")
+app = FastAPI(title="Danish Media Manager", version="0.22.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -50,6 +52,81 @@ def store(settings: Settings = Depends(get_settings)) -> Store:
 
 def metadata(settings: Settings = Depends(get_settings)) -> MetadataClient:
     return MetadataClient(settings)
+
+
+def seerr(settings: Settings = Depends(get_settings)) -> SeerrClient:
+    return SeerrClient(settings)
+
+
+def create_scored_request(
+    *,
+    query: str,
+    media_type: str,
+    min_resolution: str,
+    limit: int,
+    target_path: str | None,
+    settings: Settings,
+    metadata_result: MetadataResult,
+    di_client: DanishIntelligenceClient,
+    prowlarr_client: ProwlarrClient,
+    request_store: Store,
+    external_source: str | None = None,
+    external_id: str | None = None,
+) -> MediaRequestResponse:
+    target = target_for_path(settings, media_type, target_path)
+    row = request_store.create_media_request(
+        query,
+        media_type,
+        min_resolution,
+        target_path=target.path if target else None,
+        target_label=target.label if target else None,
+        metadata=metadata_result,
+        external_source=external_source,
+        external_id=external_id,
+    )
+    request_id = int(row["id"])
+    search_request = SearchRequest(
+        query=query,
+        media_type=media_type,  # type: ignore[arg-type]
+        limit=limit,
+        min_resolution=min_resolution,  # type: ignore[arg-type]
+    )
+    search_request = enrich_search_request(search_request, metadata_result)
+    try:
+        releases = search_releases(
+            search_request,
+            di_client=di_client,
+            prowlarr_client=prowlarr_client,
+        )
+    except Exception as exc:
+        request_store.set_media_request_status(request_id, "search_failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    search_response = build_search_response(
+        query=query,
+        media_type=media_type,
+        releases=releases,
+        request_store=request_store,
+        metadata_result=metadata_result,
+        request_id=request_id,
+    )
+    best = best_release(releases)
+    updated = request_store.update_media_request_search(
+        request_id,
+        status="ready" if best else "no_results",
+        best_result_id=best.result_id if best else None,
+        best_title=best.title if best else None,
+        best_score=best.score.score if best else None,
+        total=search_response.total,
+        accepted=search_response.accepted,
+        rejected=search_response.rejected,
+    )
+    if not updated:
+        raise HTTPException(status_code=500, detail="Request disappeared after creation")
+    return MediaRequestResponse(
+        request=MediaRequest.model_validate(updated),
+        search=search_response,
+    )
 
 
 def build_search_response(
@@ -140,6 +217,13 @@ def reason_summary(reasons) -> dict[str, int]:
     for reason in reasons:
         counts[str(reason)] = counts.get(str(reason), 0) + 1
     return _sort_count_map(counts)
+
+
+def _str_or_none(value) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text or None
 
 
 def best_release(releases: list[Release]) -> Release | None:
@@ -273,57 +357,17 @@ def create_request(
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
     metadata_result = metadata_client.lookup(request.query, request.media_type)
-    target = target_for_path(settings, request.media_type, request.target_path)
-    row = request_store.create_media_request(
-        request.query,
-        request.media_type,
-        request.min_resolution,
-        target_path=target.path if target else None,
-        target_label=target.label if target else None,
-        metadata=metadata_result,
-    )
-    request_id = int(row["id"])
-    search_request = SearchRequest(
+    return create_scored_request(
         query=request.query,
         media_type=request.media_type,
         limit=request.limit,
         min_resolution=request.min_resolution,
-    )
-    search_request = enrich_search_request(search_request, metadata_result)
-    try:
-        releases = search_releases(
-            search_request,
-            di_client=di_client,
-            prowlarr_client=prowlarr_client,
-        )
-    except Exception as exc:
-        request_store.set_media_request_status(request_id, "search_failed")
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    search_response = build_search_response(
-        query=request.query,
-        media_type=request.media_type,
-        releases=releases,
-        request_store=request_store,
+        target_path=request.target_path,
+        settings=settings,
         metadata_result=metadata_result,
-        request_id=request_id,
-    )
-    best = best_release(releases)
-    updated = request_store.update_media_request_search(
-        request_id,
-        status="ready" if best else "no_results",
-        best_result_id=best.result_id if best else None,
-        best_title=best.title if best else None,
-        best_score=best.score.score if best else None,
-        total=search_response.total,
-        accepted=search_response.accepted,
-        rejected=search_response.rejected,
-    )
-    if not updated:
-        raise HTTPException(status_code=500, detail="Request disappeared after creation")
-    return MediaRequestResponse(
-        request=MediaRequest.model_validate(updated),
-        search=search_response,
+        di_client=di_client,
+        prowlarr_client=prowlarr_client,
+        request_store=request_store,
     )
 
 
@@ -448,6 +492,63 @@ def grab_best_for_request(
     )
     request_store.set_media_request_status(request_id, "grabbed")
     return response
+
+
+@app.post("/api/seerr/sync", response_model=SeerrSyncResult)
+def sync_seerr_requests(
+    take: int = 20,
+    filter_name: str = "all",
+    settings: Settings = Depends(get_settings),
+    seerr_client: SeerrClient = Depends(seerr),
+    di_client: DanishIntelligenceClient = Depends(danish_intelligence),
+    prowlarr_client: ProwlarrClient = Depends(prowlarr),
+    request_store: Store = Depends(store),
+) -> SeerrSyncResult:
+    try:
+        items = seerr_client.requests(take=max(1, min(take, 100)), filter_name=filter_name)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    result = SeerrSyncResult()
+    for item in items:
+        request_id = seerr_request_id(item)
+        media_type = seerr_media_type(item)
+        if not request_id or media_type not in {"movie", "tv"}:
+            result.skipped += 1
+            continue
+        existing = request_store.get_media_request_by_external("seerr", request_id)
+        if existing:
+            result.skipped += 1
+            continue
+        try:
+            metadata_result = seerr_client.metadata_for_request(item)
+            if not metadata_result:
+                result.skipped += 1
+                continue
+            query = metadata_result.title
+            if metadata_result.year:
+                query = f"{query} {metadata_result.year}"
+            response = create_scored_request(
+                query=query,
+                media_type=media_type,
+                min_resolution="1080p",
+                limit=100,
+                target_path=_str_or_none(item.get("rootFolder")),
+                settings=settings,
+                metadata_result=metadata_result,
+                di_client=di_client,
+                prowlarr_client=prowlarr_client,
+                request_store=request_store,
+                external_source="seerr",
+                external_id=request_id,
+            )
+        except Exception as exc:
+            result.failed += 1
+            result.errors.append(f"Seerr request {request_id}: {exc}")
+            continue
+        result.imported += 1
+        result.requests.append(response)
+    return result
 
 
 @app.get("/api/queue")

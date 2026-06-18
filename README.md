@@ -28,6 +28,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Block raw direct download URLs by default; normal grabs must come from cached search results.
 - Filter the result list to accepted releases only.
 - Create persistent requests and store the current best release.
+- Import Seerr requests into DMM so Seerr can stay the request frontend while DMM handles rich search/scoring.
 - Store a target media folder on each request.
 - Rerun a request search without losing the request history.
 - Grab the stored best result manually when ready.
@@ -39,6 +40,13 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Show safe Prowlarr indexer diagnostics, including OldBoys-specific hints when Prowlarr marks every indexer failed.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.
+
+
+## Seerr Workflow
+
+Seerr can remain the family/user request UI. DMM can import recent Seerr requests with `POST /api/seerr/sync`, resolve metadata from Seerr, run Danish Intelligence rich search, score releases, and store the best candidate as a DMM request. This avoids making Seerr/Radarr/Sonarr the release decision brain.
+
+The sync endpoint is intentionally manual/API-triggered for now. It does not approve, decline, or grab Seerr requests automatically.
 
 ## Request Workflow
 
@@ -52,6 +60,7 @@ POST /api/requests
 GET  /api/requests
 POST /api/requests/{id}/search
 POST /api/requests/{id}/grab-best
+POST /api/seerr/sync
 GET  /api/downloads
 GET  /api/import-health
 GET  /api/prowlarr-diagnostics

@@ -59,6 +59,8 @@ class MediaRequest(BaseModel):
     metadata_title: str | None = None
     metadata_year: int | None = None
     metadata_poster_url: str | None = None
+    external_source: str | None = None
+    external_id: str | None = None
     status: str
     best_result_id: str | None = None
     best_title: str | None = None
@@ -145,6 +147,14 @@ class SearchResponse(BaseModel):
 class MediaRequestResponse(BaseModel):
     request: MediaRequest
     search: SearchResponse
+
+
+class SeerrSyncResult(BaseModel):
+    imported: int = 0
+    skipped: int = 0
+    failed: int = 0
+    requests: list[MediaRequestResponse] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
 
 class GrabResponse(BaseModel):

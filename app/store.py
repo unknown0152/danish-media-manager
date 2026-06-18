@@ -60,6 +60,8 @@ class Store:
                     metadata_title text,
                     metadata_year integer,
                     metadata_poster_url text,
+                    external_source text,
+                    external_id text,
                     status text not null default 'new',
                     best_result_id text,
                     best_title text,
@@ -82,6 +84,8 @@ class Store:
             self._ensure_column(conn, "media_requests", "metadata_title", "text")
             self._ensure_column(conn, "media_requests", "metadata_year", "integer")
             self._ensure_column(conn, "media_requests", "metadata_poster_url", "text")
+            self._ensure_column(conn, "media_requests", "external_source", "text")
+            self._ensure_column(conn, "media_requests", "external_id", "text")
 
     def _ensure_column(
         self, conn: sqlite3.Connection, table: str, column: str, definition: str
@@ -102,15 +106,18 @@ class Store:
         target_path: str | None = None,
         target_label: str | None = None,
         metadata: MetadataResult | None = None,
+        external_source: str | None = None,
+        external_id: str | None = None,
     ) -> dict[str, Any]:
         with self._connect() as conn:
             cursor = conn.execute(
                 """
                 insert into media_requests (
                     query, media_type, min_resolution, target_path, target_label,
-                    metadata_title, metadata_year, metadata_poster_url
+                    metadata_title, metadata_year, metadata_poster_url,
+                    external_source, external_id
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     query,
@@ -121,6 +128,8 @@ class Store:
                     metadata.title if metadata else None,
                     metadata.year if metadata else None,
                     metadata.poster_url if metadata else None,
+                    external_source,
+                    external_id,
                 ),
             )
             row = conn.execute(
@@ -132,6 +141,25 @@ class Store:
                 (cursor.lastrowid,),
             ).fetchone()
         return dict(row)
+
+    def get_media_request_by_external(
+        self,
+        external_source: str,
+        external_id: str,
+    ) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                select *
+                from media_requests
+                where external_source = ?
+                  and external_id = ?
+                order by id desc
+                limit 1
+                """,
+                (external_source, external_id),
+            ).fetchone()
+        return dict(row) if row else None
 
     def update_media_request_search(
         self,
