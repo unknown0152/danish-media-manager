@@ -23,3 +23,21 @@ def test_diagnostics_map_indexer_status_to_safe_names() -> None:
     assert dumped["indexer_failures"][0]["level"] == "warning"
     assert dumped["health"][0]["message"] == "OldBoys unavailable"
     assert "apikey" not in str(dumped).lower()
+
+
+def test_diagnostics_add_oldboys_hint_when_all_indexers_failed() -> None:
+    diagnostics = diagnostics_from_payloads(
+        [IndexerStatus(id=1, name="OldBoys {DK}", enable=True)],
+        [],
+        [
+            {
+                "source": "IndexerStatusCheck",
+                "type": "error",
+                "message": "All indexers are unavailable due to failures",
+            }
+        ],
+    )
+
+    assert diagnostics.hints
+    assert diagnostics.hints[0].level == "error"
+    assert "unsupported Newznab query types" in diagnostics.hints[0].message

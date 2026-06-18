@@ -16,6 +16,8 @@
         <button id="refreshQueue" type="button">Queue</button>
       </header>
 
+      <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
+
       <section class="toolbar">
         <div class="segmented" role="group" aria-label="Media type">
           <button class="active" data-type="movie" type="button">Movies</button>
@@ -36,29 +38,43 @@
       </section>
 
       <section class="grid">
-        <div>
-          <h2>Results</h2>
+        <div class="workspace-panel">
+          <div class="panel-heading">
+            <h2>Results</h2>
+            <label class="filter-toggle">
+              <input id="acceptedOnly" type="checkbox" />
+              Accepted only
+            </label>
+          </div>
           <div id="metadata" class="metadata-card"></div>
-          <label class="filter-toggle">
-            <input id="acceptedOnly" type="checkbox" />
-            Accepted only
-          </label>
           <div id="searchSummary" class="search-summary"></div>
           <div id="results" class="results"></div>
         </div>
-        <aside>
-          <h2>Downloads</h2>
-          <div id="downloads" class="downloads"></div>
-          <h2>Import Health</h2>
-          <div id="importHealth" class="health"></div>
-          <h2>Indexers</h2>
-          <div id="indexers" class="grabs"></div>
-          <h2>Prowlarr Health</h2>
-          <div id="prowlarrHealth" class="health"></div>
-          <h2>Requests</h2>
-          <div id="requests" class="requests"></div>
-          <h2>Recent Grabs</h2>
-          <div id="grabs" class="grabs"></div>
+        <aside class="rail">
+          <section class="rail-panel">
+            <h2>Downloads</h2>
+            <div id="downloads" class="downloads"></div>
+          </section>
+          <section class="rail-panel">
+            <h2>Import Health</h2>
+            <div id="importHealth" class="health"></div>
+          </section>
+          <section class="rail-panel">
+            <h2>Indexers</h2>
+            <div id="indexers" class="grabs"></div>
+          </section>
+          <section class="rail-panel">
+            <h2>Prowlarr Health</h2>
+            <div id="prowlarrHealth" class="health"></div>
+          </section>
+          <section class="rail-panel">
+            <h2>Requests</h2>
+            <div id="requests" class="requests"></div>
+          </section>
+          <section class="rail-panel">
+            <h2>Recent Grabs</h2>
+            <div id="grabs" class="grabs"></div>
+          </section>
         </aside>
       </section>
     </main>

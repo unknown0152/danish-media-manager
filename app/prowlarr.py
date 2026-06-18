@@ -6,6 +6,7 @@ import httpx
 from app.config import Settings
 from app.decision import decide_release
 from app.models import (
+    DiagnosticHint,
     HealthIssue,
     IndexerFailure,
     IndexerStatus,
@@ -215,34 +216,75 @@ def diagnostics_from_payloads(
     health: list[dict[str, Any]],
 ) -> ProwlarrDiagnostics:
     names = {indexer.id: indexer.name for indexer in indexers}
+    indexer_failures = [
+        IndexerFailure(
+            id=_int_or_none(item.get("indexerId") or item.get("indexer_id")),
+            name=names.get(
+                _int_or_none(item.get("indexerId") or item.get("indexer_id")),
+                str(item.get("indexer") or item.get("name") or "Unknown"),
+            ),
+            disabled_till=_str_or_none(item.get("disabledTill") or item.get("disabled_till")),
+            initial_failure=_str_or_none(item.get("initialFailure") or item.get("initial_failure")),
+            most_recent_failure=_str_or_none(
+                item.get("mostRecentFailure") or item.get("most_recent_failure")
+            ),
+            level=_str_or_none(item.get("escalationLevel") or item.get("level")),
+        )
+        for item in statuses
+    ]
+    health_issues = [
+        HealthIssue(
+            source=_str_or_none(item.get("source")),
+            type=_str_or_none(item.get("type")),
+            message=str(item.get("message") or item.get("errorMessage") or item),
+        )
+        for item in health
+    ]
     return ProwlarrDiagnostics(
-        indexer_failures=[
-            IndexerFailure(
-                id=_int_or_none(item.get("indexerId") or item.get("indexer_id")),
-                name=names.get(
-                    _int_or_none(item.get("indexerId") or item.get("indexer_id")),
-                    str(item.get("indexer") or item.get("name") or "Unknown"),
-                ),
-                disabled_till=_str_or_none(item.get("disabledTill") or item.get("disabled_till")),
-                initial_failure=_str_or_none(
-                    item.get("initialFailure") or item.get("initial_failure")
-                ),
-                most_recent_failure=_str_or_none(
-                    item.get("mostRecentFailure") or item.get("most_recent_failure")
-                ),
-                level=_str_or_none(item.get("escalationLevel") or item.get("level")),
-            )
-            for item in statuses
-        ],
-        health=[
-            HealthIssue(
-                source=_str_or_none(item.get("source")),
-                type=_str_or_none(item.get("type")),
-                message=str(item.get("message") or item.get("errorMessage") or item),
-            )
-            for item in health
-        ],
+        indexer_failures=indexer_failures,
+        health=health_issues,
+        hints=diagnostic_hints(indexers, health_issues, indexer_failures),
     )
+
+
+def diagnostic_hints(
+    indexers: list[IndexerStatus],
+    health: list[HealthIssue],
+    failures: list[IndexerFailure],
+) -> list[DiagnosticHint]:
+    hints: list[DiagnosticHint] = []
+    health_text = " ".join(issue.message.lower() for issue in health)
+    indexer_names = " ".join(indexer.name.lower() for indexer in indexers)
+    if "all indexers are unavailable" in health_text:
+        if "oldboys" in indexer_names:
+            hints.append(
+                DiagnosticHint(
+                    level="error",
+                    message=(
+                        "Prowlarr only has OldBoys enabled and marks it failed. "
+                        "Check Danish Intelligence logs for unsupported Newznab query types "
+                        "such as t=tv or t=movieSearch, or proxy authentication failures."
+                    ),
+                )
+            )
+        else:
+            hints.append(
+                DiagnosticHint(
+                    level="error",
+                    message=(
+                        "Prowlarr reports every enabled indexer as failed. Test each indexer "
+                        "in Prowlarr and check recent indexer logs for HTTP/auth/DNS errors."
+                    ),
+                )
+            )
+    if failures:
+        hints.append(
+            DiagnosticHint(
+                level="warn",
+                message="One or more indexers have an active failure status in Prowlarr.",
+            )
+        )
+    return hints
 
 
 def _result_id(title: str, guid: str | None, download_url: str | None) -> str:

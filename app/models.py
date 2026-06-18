@@ -171,9 +171,15 @@ class HealthIssue(BaseModel):
     message: str
 
 
+class DiagnosticHint(BaseModel):
+    level: str = "info"
+    message: str
+
+
 class ProwlarrDiagnostics(BaseModel):
     indexer_failures: list[IndexerFailure] = Field(default_factory=list)
     health: list[HealthIssue] = Field(default_factory=list)
+    hints: list[DiagnosticHint] = Field(default_factory=list)
 
 
 class DownloadItem(BaseModel):

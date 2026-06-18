@@ -28,7 +28,7 @@ from app.store import Store
 from app.targets import all_targets, target_for_path
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.17.0")
+app = FastAPI(title="Danish Media Manager", version="0.18.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:

@@ -12,6 +12,7 @@ const state = {
 };
 
 const statusEl = document.querySelector("#status");
+const serviceStripEl = document.querySelector("#serviceStrip");
 const metadataEl = document.querySelector("#metadata");
 const searchSummaryEl = document.querySelector("#searchSummary");
 const resultsEl = document.querySelector("#results");
@@ -71,9 +72,39 @@ async function loadStatus() {
     statusEl.textContent = `Prowlarr ${status.prowlarr_ready ? "ready" : "not ready"} · AltMount ${
       status.altmount_ready ? "ready" : "not ready"
     }`;
+    renderServiceStrip(status);
   } catch (error) {
     statusEl.textContent = `Status failed: ${error.message}`;
+    serviceStripEl.innerHTML = "";
   }
+}
+
+function renderServiceStrip(status) {
+  const cards = [
+    {
+      label: "Prowlarr",
+      state: status.prowlarr_ready ? "Ready" : "Offline",
+      ok: status.prowlarr_ready,
+      detail: status.prowlarr_url,
+    },
+    {
+      label: "AltMount",
+      state: status.altmount_ready ? "Ready" : "Offline",
+      ok: status.altmount_ready,
+      detail: status.altmount_url,
+    },
+  ];
+  serviceStripEl.innerHTML = cards
+    .map(
+      (card) => `
+        <div class="service-card ${card.ok ? "ok" : "warn"}">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.state)}</strong>
+          <small>${escapeHtml(card.detail)}</small>
+        </div>
+      `
+    )
+    .join("");
 }
 
 async function search(query) {
@@ -452,23 +483,31 @@ async function refreshIndexers() {
 function renderProwlarrDiagnostics(diagnostics) {
   const failures = diagnostics.indexer_failures || [];
   const health = diagnostics.health || [];
-  if (!failures.length && !health.length) {
+  const hints = diagnostics.hints || [];
+  if (!failures.length && !health.length && !hints.length) {
     prowlarrHealthEl.innerHTML = `<div class="probe ok">No active Prowlarr health issues</div>`;
     return;
   }
+  const hintHtml = hints
+    .map((item) => {
+      const state = item.level === "error" ? "bad" : "warn";
+      return `<div class="probe ${state}"><strong>Hint</strong><div>${escapeHtml(item.message)}</div></div>`;
+    })
+    .join("");
   const failureHtml = failures
     .map((item) => {
       const meta = [item.disabled_till, item.most_recent_failure, item.level].filter(Boolean).join(" · ");
-      return `<div class="probe warn"><strong>${escapeHtml(item.name)}</strong><div>${escapeHtml(meta || "Indexer failure")}</div></div>`;
+      return `<div class="probe bad"><strong>${escapeHtml(item.name)}</strong><div>${escapeHtml(meta || "Indexer failure")}</div></div>`;
     })
     .join("");
   const healthHtml = health
     .map((item) => {
       const label = [item.source, item.type].filter(Boolean).join(" · ");
-      return `<div class="probe warn"><strong>${escapeHtml(label || "Health")}</strong><div>${escapeHtml(item.message)}</div></div>`;
+      const state = item.type === "error" ? "bad" : "warn";
+      return `<div class="probe ${state}"><strong>${escapeHtml(label || "Health")}</strong><div>${escapeHtml(item.message)}</div></div>`;
     })
     .join("");
-  prowlarrHealthEl.innerHTML = `${failureHtml}${healthHtml}`;
+  prowlarrHealthEl.innerHTML = `${hintHtml}${failureHtml}${healthHtml}`;
 }
 
 async function refreshRequests() {

@@ -17,6 +17,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Parse title/year matching and reject wrong-year releases.
 - Use metadata year for exact release-year rejection even when the typed query has no year.
 - Show why one release ranks above another.
+- Use a denser dashboard layout with service cards, result controls, and operational panels.
 - Sort results best-first by accepted state, score, resolution, source, size, and age.
 - Show accepted/rejected counts and decision warnings.
 - Show quality diagnostics for each search: resolutions, sources, accepted resolutions, and best score.
@@ -34,7 +35,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Show per-search Prowlarr indexer result counts and best scores.
 - Check whether AltMount import paths are visible and using symlinks instead of regular files.
 - Show active Prowlarr indexer failures and health warnings.
-- Show safe Prowlarr indexer diagnostics.
+- Show safe Prowlarr indexer diagnostics, including OldBoys-specific hints when Prowlarr marks every indexer failed.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.
 
