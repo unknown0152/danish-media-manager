@@ -41,6 +41,12 @@ cp docker-compose.example.yml docker-compose.yml
 PROWLARR_API_KEY=... ALTMOUNT_API_KEY=... docker compose up -d --build
 ```
 
+After a tagged release exists, the image will be published as:
+
+```text
+ghcr.io/unknown0152/danish-media-manager:<tag>
+```
+
 The container expects to be on the same Docker network as `prowlarr` and
 `danish-intelligence` or whichever service exposes the AltMount SAB API.
 
@@ -62,4 +68,3 @@ The container expects to be on the same Docker network as `prowlarr` and
 - Add import/symlink verification.
 - Add proper queue cards instead of raw JSON.
 - Add user accounts only if this becomes exposed outside the LAN.
-
