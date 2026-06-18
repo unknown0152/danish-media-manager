@@ -1,6 +1,6 @@
 from app.scoring import score_release
 from app.decision import decide_release
-from app.main import indexer_summaries, quality_summary
+from app.main import indexer_summaries, quality_summary, reason_summary
 from app.models import Release
 from app.quality import parse_quality
 from app.titlematch import match_title
@@ -200,3 +200,18 @@ def test_quality_summary_counts_best_resolution_and_sources() -> None:
     assert summary.sources["web-dl"] == 1
     assert summary.best_resolution == "2160p"
     assert summary.accepted_by_resolution == {"2160p": 1, "1080p": 1}
+
+
+def test_reason_summary_counts_repeated_rejections() -> None:
+    summary = reason_summary(
+        [
+            "Below requested minimum resolution: 1080p < 2160p",
+            "Below requested minimum resolution: 1080p < 2160p",
+            "Rejected bad source quality",
+        ]
+    )
+
+    assert summary == {
+        "Below requested minimum resolution: 1080p < 2160p": 2,
+        "Rejected bad source quality": 1,
+    }

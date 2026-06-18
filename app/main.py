@@ -24,7 +24,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.10.0")
+app = FastAPI(title="Danish Media Manager", version="0.11.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -58,6 +58,16 @@ def build_search_response(
         rejected=len(releases) - accepted,
         indexers=indexer_summaries(releases),
         quality=quality_summary(releases),
+        rejection_summary=reason_summary(
+            reason
+            for release in releases
+            for reason in release.decision.rejections
+        ),
+        warning_summary=reason_summary(
+            reason
+            for release in releases
+            for reason in release.decision.warnings
+        ),
         releases=releases,
     )
 
@@ -108,6 +118,13 @@ def quality_summary(releases: list[Release]) -> QualitySearchSummary:
 
 def _sort_count_map(values: dict[str, int]) -> dict[str, int]:
     return dict(sorted(values.items(), key=lambda item: item[1], reverse=True))
+
+
+def reason_summary(reasons) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for reason in reasons:
+        counts[str(reason)] = counts.get(str(reason), 0) + 1
+    return _sort_count_map(counts)
 
 
 def best_release(releases: list[Release]) -> Release | None:

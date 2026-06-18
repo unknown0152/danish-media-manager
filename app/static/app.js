@@ -3,6 +3,8 @@ const state = {
   minResolution: "any",
   releases: [],
   quality: null,
+  rejectionSummary: {},
+  warningSummary: {},
   currentRequest: null,
 };
 
@@ -78,6 +80,8 @@ async function search(query) {
     });
     state.releases = data.releases;
     state.quality = data.quality || null;
+    state.rejectionSummary = data.rejection_summary || {};
+    state.warningSummary = data.warning_summary || {};
     state.currentRequest = null;
     statusEl.textContent = `${data.total} results · ${data.accepted} accepted · ${data.rejected} rejected`;
     renderSearchSummary(data.indexers || []);
@@ -103,6 +107,8 @@ async function createRequest(query) {
     });
     state.releases = data.search.releases;
     state.quality = data.search.quality || null;
+    state.rejectionSummary = data.search.rejection_summary || {};
+    state.warningSummary = data.search.warning_summary || {};
     state.currentRequest = data.request;
     statusEl.textContent = `Request #${data.request.id} · ${data.search.total} results · ${data.search.accepted} accepted`;
     renderSearchSummary(data.search.indexers || []);
@@ -134,6 +140,8 @@ function renderSearchSummary(indexers) {
   if (state.quality) {
     searchSummaryEl.innerHTML += renderQualitySummary(state.quality);
   }
+  searchSummaryEl.innerHTML += renderReasonSummary("Rejected", state.rejectionSummary);
+  searchSummaryEl.innerHTML += renderReasonSummary("Warnings", state.warningSummary);
 }
 
 function renderQualitySummary(quality) {
@@ -158,6 +166,19 @@ function formatCountMap(values) {
   return Object.entries(values || {})
     .map(([key, count]) => `${key} ${count}`)
     .join(" · ");
+}
+
+function renderReasonSummary(label, values) {
+  const formatted = formatCountMap(values);
+  if (!formatted) {
+    return "";
+  }
+  return `
+    <div class="summary-chip reason-chip">
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(formatted)}</span>
+    </div>
+  `;
 }
 
 function renderResults() {

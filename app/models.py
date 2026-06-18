@@ -107,6 +107,8 @@ class SearchResponse(BaseModel):
     rejected: int
     indexers: list[IndexerSearchSummary] = Field(default_factory=list)
     quality: QualitySearchSummary = Field(default_factory=QualitySearchSummary)
+    rejection_summary: dict[str, int] = Field(default_factory=dict)
+    warning_summary: dict[str, int] = Field(default_factory=dict)
     releases: list[Release]
 
 
