@@ -63,13 +63,22 @@ def score_release(title: str, size: int | None = None) -> ScoreBreakdown:
     if quality.audio in {"TrueHD/Atmos", "DTS-HD"}:
         score += 350
         reasons.append("High quality audio")
+    elif quality.audio == "DDP/EAC3 Atmos":
+        score += 150
+        reasons.append("DDP Atmos")
 
     if "DV" in quality.hdr:
-        score += 180
+        score += 450
         reasons.append("Dolby Vision")
     if "HDR10+" in quality.hdr:
-        score += 120
+        score += 260
         reasons.append("HDR10+")
+    elif "HDR10" in quality.hdr or "HDR" in quality.hdr:
+        score += 220
+        reasons.append("HDR")
+    if quality.resolution == "2160p" and "SDR" in quality.hdr:
+        score -= 350
+        reasons.append("2160p SDR")
 
     if quality.is_bad_source:
         score -= 7000

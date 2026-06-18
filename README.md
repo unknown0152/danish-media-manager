@@ -12,6 +12,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
 - Parse HDR details including DV and HDR10+.
+- Prefer 2160p HDR/Dolby Vision over 2160p SDR when Danish/NORDiC signals are close.
 - Parse title/year matching and reject wrong-year releases.
 - Show why one release ranks above another.
 - Sort results best-first by accepted state, score, resolution, source, size, and age.

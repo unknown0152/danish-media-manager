@@ -60,17 +60,19 @@ def parse_quality(title: str) -> QualityInfo:
     elif "dvd" in text:
         info.source = "dvd"
 
-    if any(codec in text for codec in ("x265", "h265", "hevc")):
+    if any(codec in text for codec in ("x265", "hevc")) or "h265" in compact:
         info.codec = "HEVC/x265"
     elif "x264" in text or "h264" in text or "h.264" in text:
         info.codec = "H.264/x264"
 
-    if "truehd" in text or "atmos" in text:
-        info.audio = "TrueHD/Atmos"
+    if "truehd" in text:
+        info.audio = "TrueHD/Atmos" if "atmos" in text else "TrueHD"
     elif "dts-hd" in text or "dts hd" in text:
         info.audio = "DTS-HD"
     elif "ddp" in text or "eac3" in text:
-        info.audio = "DDP/EAC3"
+        info.audio = "DDP/EAC3 Atmos" if "atmos" in text else "DDP/EAC3"
+    elif "atmos" in text:
+        info.audio = "Atmos"
 
     hdr: list[str] = []
     if "dv" in text or "dolby vision" in text:

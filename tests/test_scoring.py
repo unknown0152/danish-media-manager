@@ -46,6 +46,29 @@ def test_hdr_details_are_parsed() -> None:
     assert "HDR10+" in quality.hdr
 
 
+def test_h265_and_ddp_atmos_are_parsed_without_truehd() -> None:
+    quality = parse_quality("Movie.2026.NORDiC.2160p.WEB-DL.DV.H.265.DDP5.1.Atmos")
+
+    assert quality.codec == "HEVC/x265"
+    assert quality.audio == "DDP/EAC3 Atmos"
+    assert "DV" in quality.hdr
+
+
+def test_2160p_dolby_vision_beats_2160p_sdr_when_other_signals_are_close() -> None:
+    sdr = score_release(
+        "The.Batman.2022.NORDiC.2160p.SDR.BluRay.DTS-HD.MA.TrueHD.7.1.Atmos.x265-NorTekst",
+        size=40_000_000_000,
+    )
+    dv = score_release(
+        "The.Batman.2022.NORDiC.2160p.DV.HMAX.WEB-DL.DDP5.1.Atmos.x265",
+        size=40_000_000_000,
+    )
+
+    assert dv.score > sdr.score
+    assert "Dolby Vision" in dv.reasons
+    assert "2160p SDR" in sdr.reasons
+
+
 def test_bad_cam_is_penalized() -> None:
     scored = score_release("The.Movie.2026.CAM.1080p.DKSUBS")
 
