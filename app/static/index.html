@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Danish Media Manager</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Danish Media Manager</h1>
+          <p id="status">Checking services...</p>
+        </div>
+        <button id="refreshQueue" type="button">Queue</button>
+      </header>
+
+      <section class="toolbar">
+        <div class="segmented" role="group" aria-label="Media type">
+          <button class="active" data-type="movie" type="button">Movies</button>
+          <button data-type="tv" type="button">TV</button>
+        </div>
+        <form id="searchForm">
+          <input id="query" name="query" placeholder="Search title" autocomplete="off" required />
+          <button type="submit">Search</button>
+        </form>
+      </section>
+
+      <section class="grid">
+        <div>
+          <h2>Results</h2>
+          <div id="results" class="results"></div>
+        </div>
+        <aside>
+          <h2>Queue</h2>
+          <pre id="queue">{}</pre>
+          <h2>Recent Grabs</h2>
+          <div id="grabs" class="grabs"></div>
+        </aside>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

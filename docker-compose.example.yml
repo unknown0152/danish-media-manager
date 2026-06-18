@@ -1,0 +1,21 @@
+services:
+  danish-media-manager:
+    build: .
+    container_name: danish-media-manager
+    environment:
+      PROWLARR_URL: http://prowlarr:9696
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:?set PROWLARR_API_KEY}
+      ALTMOUNT_URL: http://danish-intelligence:9699/altmount
+      ALTMOUNT_API_KEY: ${ALTMOUNT_API_KEY:?set ALTMOUNT_API_KEY}
+      DATABASE_PATH: /data/danish-media-manager.db
+    volumes:
+      - ./data:/data
+    networks:
+      - media-stack
+    ports:
+      - "8088:8080"
+
+networks:
+  media-stack:
+    external: true
+
