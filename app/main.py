@@ -35,7 +35,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.24.0")
+app = FastAPI(title="Danish Media Manager", version="0.25.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
@@ -637,6 +637,7 @@ def sync_seerr_requests(
                             arr_client=arr_client,
                             request_store=request_store,
                         )
+                        seerr_client.mark_available(item)
                         result.grabbed += 1
                 except Exception as exc:
                     result.grab_failed += 1
@@ -677,6 +678,7 @@ def sync_seerr_requests(
                         arr_client=arr_client,
                         request_store=request_store,
                     )
+                    seerr_client.mark_available(item)
                     result.grabbed += 1
                 except Exception as exc:
                     request_store.set_media_request_status(response.request.id, "grab_failed")

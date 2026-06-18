@@ -65,6 +65,30 @@ class SeerrClient:
             return None
         return metadata_from_seerr_detail(detail, media_type, fallback_id=tmdb_id)
 
+    def mark_available(self, item: dict[str, Any]) -> bool:
+        if not self.api_key:
+            return False
+        media = item.get("media") if isinstance(item.get("media"), dict) else {}
+        media_id = media.get("id")
+        if media_id is None:
+            return False
+        payload: dict[str, Any] = {"is4k": bool(item.get("is4k"))}
+        if seerr_media_type(item) == "tv":
+            seasons = [
+                {"seasonNumber": season.get("seasonNumber")}
+                for season in item.get("seasons") or []
+                if isinstance(season, dict) and season.get("seasonNumber") is not None
+            ]
+            payload["seasons"] = seasons or [{"seasonNumber": 1}]
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.post(
+                f"{self.base_url}/api/v1/media/{media_id}/available",
+                json=payload,
+                headers={"X-Api-Key": self.api_key},
+            )
+            response.raise_for_status()
+        return True
+
 
 def seerr_request_id(item: dict[str, Any]) -> str | None:
     value = item.get("id")
