@@ -24,7 +24,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.11.0")
+app = FastAPI(title="Danish Media Manager", version="0.12.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -131,7 +131,7 @@ def best_release(releases: list[Release]) -> Release | None:
     for release in releases:
         if release.decision.accepted:
             return release
-    return releases[0] if releases else None
+    return None
 
 
 def grab_cached_result(
@@ -144,6 +144,14 @@ def grab_cached_result(
         cached = request_store.get_cached_release(request.result_id)
         if not cached:
             raise HTTPException(status_code=404, detail="Search result expired; search again")
+        release_payload = json.loads(str(cached["release_json"]))
+        decision = release_payload.get("decision") if isinstance(release_payload, dict) else {}
+        if isinstance(decision, dict) and decision.get("grab_allowed") is False:
+            reasons = decision.get("rejections") if isinstance(decision.get("rejections"), list) else []
+            detail = "Release is not grabbable"
+            if reasons:
+                detail = f"{detail}: {'; '.join(str(reason) for reason in reasons)}"
+            raise HTTPException(status_code=409, detail=detail)
         request.download_url = (
             cached.get("download_url") if isinstance(cached.get("download_url"), str) else None
         )
