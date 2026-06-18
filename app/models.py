@@ -14,6 +14,27 @@ class SearchRequest(BaseModel):
     limit: int = Field(default=100, ge=1, le=500)
 
 
+class MediaRequestCreate(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+    media_type: MediaType = "movie"
+    limit: int = Field(default=100, ge=1, le=500)
+
+
+class MediaRequest(BaseModel):
+    id: int
+    created_at: str
+    updated_at: str
+    query: str
+    media_type: MediaType
+    status: str
+    best_result_id: str | None = None
+    best_title: str | None = None
+    best_score: int | None = None
+    total: int = 0
+    accepted: int = 0
+    rejected: int = 0
+
+
 class GrabRequest(BaseModel):
     title: str
     media_type: MediaType = "movie"
@@ -61,6 +82,11 @@ class SearchResponse(BaseModel):
     accepted: int
     rejected: int
     releases: list[Release]
+
+
+class MediaRequestResponse(BaseModel):
+    request: MediaRequest
+    search: SearchResponse
 
 
 class GrabResponse(BaseModel):

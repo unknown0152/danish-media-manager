@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 Resolution = Literal["2160p", "1080p", "720p", "sd", "unknown"]
@@ -13,6 +13,7 @@ class QualityInfo(BaseModel):
     source: Source = "unknown"
     codec: str | None = None
     audio: str | None = None
+    hdr: list[str] = Field(default_factory=list)
     has_danish_audio: bool = False
     has_danish_subtitles: bool = False
     has_multi_subtitles: bool = False
@@ -70,6 +71,19 @@ def parse_quality(title: str) -> QualityInfo:
         info.audio = "DTS-HD"
     elif "ddp" in text or "eac3" in text:
         info.audio = "DDP/EAC3"
+
+    hdr: list[str] = []
+    if "dv" in text or "dolby vision" in text:
+        hdr.append("DV")
+    if "hdr10plus" in compact or "hdr10+" in text:
+        hdr.append("HDR10+")
+    elif "hdr10" in compact:
+        hdr.append("HDR10")
+    elif re.search(r"\bhdr\b", text):
+        hdr.append("HDR")
+    if "sdr" in text:
+        hdr.append("SDR")
+    info.hdr = hdr
 
     info.has_danish_audio = any(
         token in compact for token in ("dkaudio", "dansklyd", "dktale")

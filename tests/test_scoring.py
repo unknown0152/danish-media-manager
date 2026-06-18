@@ -33,6 +33,17 @@ def test_plain_nordic_counts_as_likely_danish_subtitles() -> None:
     assert "Likely Danish subtitles" in scored.reasons
 
 
+def test_hdr_details_are_parsed() -> None:
+    quality = parse_quality(
+        "Movie.2026.NORDiC.2160p.UHD.BluRay.DV.HDR10Plus.TrueHD.Atmos.x265"
+    )
+
+    assert quality.resolution == "2160p"
+    assert quality.source == "bluray"
+    assert "DV" in quality.hdr
+    assert "HDR10+" in quality.hdr
+
+
 def test_bad_cam_is_penalized() -> None:
     scored = score_release("The.Movie.2026.CAM.1080p.DKSUBS")
 

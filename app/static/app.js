@@ -1,6 +1,7 @@
 const state = {
   mediaType: "movie",
   releases: [],
+  currentRequest: null,
 };
 
 const statusEl = document.querySelector("#status");
@@ -8,6 +9,7 @@ const resultsEl = document.querySelector("#results");
 const queueEl = document.querySelector("#queue");
 const grabsEl = document.querySelector("#grabs");
 const indexersEl = document.querySelector("#indexers");
+const requestsEl = document.querySelector("#requests");
 const searchForm = document.querySelector("#searchForm");
 const queryInput = document.querySelector("#query");
 
@@ -25,6 +27,9 @@ searchForm.addEventListener("submit", async (event) => {
 });
 
 document.querySelector("#refreshQueue").addEventListener("click", refreshQueue);
+document.querySelector("#requestBest").addEventListener("click", async () => {
+  await createRequest(queryInput.value.trim());
+});
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -58,10 +63,29 @@ async function search(query) {
       body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
     });
     state.releases = data.releases;
+    state.currentRequest = null;
     statusEl.textContent = `${data.total} results · ${data.accepted} accepted · ${data.rejected} rejected`;
     renderResults();
   } catch (error) {
     resultsEl.innerHTML = `<p>Search failed: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function createRequest(query) {
+  if (!query) return;
+  resultsEl.innerHTML = "<p>Creating request...</p>";
+  try {
+    const data = await api("/api/requests", {
+      method: "POST",
+      body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
+    });
+    state.releases = data.search.releases;
+    state.currentRequest = data.request;
+    statusEl.textContent = `Request #${data.request.id} · ${data.search.total} results · ${data.search.accepted} accepted`;
+    renderResults();
+    await refreshRequests();
+  } catch (error) {
+    resultsEl.innerHTML = `<p>Request failed: ${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -74,12 +98,16 @@ function renderResults() {
   state.releases.forEach((release) => {
     const item = document.createElement("article");
     item.className = "release";
+    if (state.currentRequest?.best_result_id === release.result_id) {
+      item.classList.add("best");
+    }
     const size = release.size ? `${(release.size / 1024 / 1024 / 1024).toFixed(2)} GiB` : "unknown size";
     const quality = [
       release.quality?.resolution,
       release.quality?.source,
       release.quality?.codec,
       release.quality?.audio,
+      ...(release.quality?.hdr || []),
     ]
       .filter(Boolean)
       .join(" · ");
@@ -90,6 +118,11 @@ function renderResults() {
         <span>${release.score.score}</span>
       </div>
       <div>
+        ${
+          state.currentRequest?.best_result_id === release.result_id
+            ? `<div class="badge">Best pick</div>`
+            : ""
+        }
         <div class="title">${escapeHtml(release.title)}</div>
         <div class="meta">${escapeHtml(release.indexer)} · ${size}</div>
         <div class="meta">${escapeHtml(quality)}</div>
@@ -162,6 +195,45 @@ async function refreshIndexers() {
   }
 }
 
+async function refreshRequests() {
+  try {
+    const requests = await api("/api/requests");
+    requestsEl.innerHTML = requests
+      .map((request) => {
+        const best = request.best_title ? `<div class="meta">${escapeHtml(request.best_title)}</div>` : "";
+        const score =
+          request.best_score === null || request.best_score === undefined ? "" : ` · ${request.best_score}`;
+        return `
+          <div class="request">
+            <div><strong>#${request.id}</strong> ${escapeHtml(request.query)}${score}</div>
+            <div class="meta">${escapeHtml(request.media_type)} · ${escapeHtml(request.status)} · ${
+              request.accepted
+            }/${request.total} accepted</div>
+            ${best}
+            <button type="button" data-request-id="${request.id}" ${
+              request.best_result_id ? "" : "disabled"
+            }>Grab best</button>
+          </div>
+        `;
+      })
+      .join("");
+    requestsEl.querySelectorAll("button[data-request-id]").forEach((button) => {
+      button.addEventListener("click", () => grabBest(button.dataset.requestId));
+    });
+  } catch (error) {
+    requestsEl.innerHTML = `<div>Requests failed: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function grabBest(requestId) {
+  try {
+    await api(`/api/requests/${requestId}/grab-best`, { method: "POST" });
+    await Promise.all([refreshQueue(), refreshGrabs(), refreshRequests()]);
+  } catch (error) {
+    alert(`Grab best failed: ${error.message}`);
+  }
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => {
     const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
@@ -173,3 +245,4 @@ loadStatus();
 refreshQueue();
 refreshGrabs();
 refreshIndexers();
+refreshRequests();

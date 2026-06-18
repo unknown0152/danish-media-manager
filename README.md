@@ -13,11 +13,28 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
 - Show why one release ranks above another.
 - Show accepted/rejected counts and decision warnings.
+- Create persistent requests and store the current best release.
+- Rerun a request search without losing the request history.
+- Grab the stored best result manually when ready.
 - Send a selected release URL to AltMount through the SAB-compatible API.
 - Show AltMount queue JSON.
 - Show safe Prowlarr indexer diagnostics.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.
+
+## Request Workflow
+
+The app does not auto-download in the background. A request stores the search and the best
+candidate, but a user action is still required to grab it.
+
+Useful endpoints:
+
+```text
+POST /api/requests
+GET  /api/requests
+POST /api/requests/{id}/search
+POST /api/requests/{id}/grab-best
+```
 
 ## Run Locally
 

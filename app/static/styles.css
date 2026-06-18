@@ -119,7 +119,7 @@ button:disabled {
 
 form {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 10px;
 }
 
@@ -149,6 +149,21 @@ input {
   gap: 14px;
   align-items: center;
   padding: 12px;
+}
+
+.release.best {
+  border-color: var(--good);
+}
+
+.badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: rgba(91, 210, 138, 0.14);
+  color: var(--good);
+  padding: 3px 7px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .score {
@@ -209,11 +224,24 @@ pre {
   color: var(--muted);
 }
 
-.grabs {
+.grabs,
+.requests {
   display: grid;
   gap: 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.request {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px;
+  background: #10141b;
+}
+
+.request button {
+  width: 100%;
+  margin-top: 8px;
 }
 
 @media (max-width: 860px) {
@@ -225,5 +253,9 @@ pre {
 
   .release {
     align-items: start;
+  }
+
+  form {
+    grid-template-columns: 1fr;
   }
 }

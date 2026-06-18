@@ -64,6 +64,13 @@ def score_release(title: str, size: int | None = None) -> ScoreBreakdown:
         score += 350
         reasons.append("High quality audio")
 
+    if "DV" in quality.hdr:
+        score += 180
+        reasons.append("Dolby Vision")
+    if "HDR10+" in quality.hdr:
+        score += 120
+        reasons.append("HDR10+")
+
     if quality.is_bad_source:
         score -= 7000
         reasons.append("Bad source quality")

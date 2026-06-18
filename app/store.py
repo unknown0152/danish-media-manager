@@ -37,6 +37,7 @@ class Store:
                 create table if not exists release_cache (
                     result_id text primary key,
                     created_at text not null default current_timestamp,
+                    request_id integer,
                     query text not null,
                     media_type text not null,
                     title text not null,
@@ -45,17 +46,162 @@ class Store:
                 )
                 """
             )
+            conn.execute(
+                """
+                create table if not exists media_requests (
+                    id integer primary key autoincrement,
+                    created_at text not null default current_timestamp,
+                    updated_at text not null default current_timestamp,
+                    query text not null,
+                    media_type text not null,
+                    status text not null default 'new',
+                    best_result_id text,
+                    best_title text,
+                    best_score integer,
+                    total integer not null default 0,
+                    accepted integer not null default 0,
+                    rejected integer not null default 0
+                )
+                """
+            )
+            self._ensure_column(conn, "release_cache", "request_id", "integer")
 
-    def cache_release(self, query: str, media_type: str, release: Release) -> None:
+    def _ensure_column(
+        self, conn: sqlite3.Connection, table: str, column: str, definition: str
+    ) -> None:
+        columns = {
+            row["name"]
+            for row in conn.execute(f"pragma table_info({table})").fetchall()
+            if isinstance(row["name"], str)
+        }
+        if column not in columns:
+            conn.execute(f"alter table {table} add column {column} {definition}")
+
+    def create_media_request(self, query: str, media_type: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                insert into media_requests (query, media_type)
+                values (?, ?)
+                """,
+                (query, media_type),
+            )
+            row = conn.execute(
+                """
+                select *
+                from media_requests
+                where id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+        return dict(row)
+
+    def update_media_request_search(
+        self,
+        request_id: int,
+        *,
+        status: str,
+        best_result_id: str | None,
+        best_title: str | None,
+        best_score: int | None,
+        total: int,
+        accepted: int,
+        rejected: int,
+    ) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update media_requests
+                set updated_at = current_timestamp,
+                    status = ?,
+                    best_result_id = ?,
+                    best_title = ?,
+                    best_score = ?,
+                    total = ?,
+                    accepted = ?,
+                    rejected = ?
+                where id = ?
+                """,
+                (
+                    status,
+                    best_result_id,
+                    best_title,
+                    best_score,
+                    total,
+                    accepted,
+                    rejected,
+                    request_id,
+                ),
+            )
+            row = conn.execute(
+                """
+                select *
+                from media_requests
+                where id = ?
+                """,
+                (request_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def set_media_request_status(self, request_id: int, status: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update media_requests
+                set updated_at = current_timestamp,
+                    status = ?
+                where id = ?
+                """,
+                (status, request_id),
+            )
+            row = conn.execute(
+                """
+                select *
+                from media_requests
+                where id = ?
+                """,
+                (request_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_media_request(self, request_id: int) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                select *
+                from media_requests
+                where id = ?
+                """,
+                (request_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def recent_media_requests(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select *
+                from media_requests
+                order by id desc
+                limit ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def cache_release(
+        self, query: str, media_type: str, release: Release, request_id: int | None = None
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 """
                 insert into release_cache (
-                    result_id, query, media_type, title, download_url, release_json
+                    result_id, request_id, query, media_type, title, download_url, release_json
                 )
-                values (?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?)
                 on conflict(result_id) do update set
                     created_at = current_timestamp,
+                    request_id = excluded.request_id,
                     query = excluded.query,
                     media_type = excluded.media_type,
                     title = excluded.title,
@@ -64,6 +210,7 @@ class Store:
                 """,
                 (
                     release.result_id,
+                    request_id,
                     query,
                     media_type,
                     release.title,
@@ -76,7 +223,7 @@ class Store:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                select result_id, created_at, media_type, title, download_url, release_json
+                select result_id, request_id, created_at, media_type, title, download_url, release_json
                 from release_cache
                 where result_id = ?
                 """,
