@@ -12,6 +12,14 @@ const state = {
 };
 
 const statusEl = document.querySelector("#status");
+const sidebarStatusEl = document.querySelector("#sidebarStatus");
+const serviceMetricEl = document.querySelector("#serviceMetric");
+const requestMetricEl = document.querySelector("#requestMetric");
+const requestMetricSubEl = document.querySelector("#requestMetricSub");
+const queueMetricEl = document.querySelector("#queueMetric");
+const queueMetricSubEl = document.querySelector("#queueMetricSub");
+const indexerMetricEl = document.querySelector("#indexerMetric");
+const indexerMetricSubEl = document.querySelector("#indexerMetricSub");
 const serviceStripEl = document.querySelector("#serviceStrip");
 const metadataEl = document.querySelector("#metadata");
 const searchSummaryEl = document.querySelector("#searchSummary");
@@ -70,12 +78,18 @@ async function api(path, options = {}) {
 async function loadStatus() {
   try {
     const status = await api("/api/status");
-    statusEl.textContent = `Prowlarr ${status.prowlarr_ready ? "ready" : "not ready"} · AltMount ${
+    const readyCount = [status.prowlarr_ready, status.altmount_ready].filter(Boolean).length;
+    const statusText = `Prowlarr ${status.prowlarr_ready ? "ready" : "not ready"} · AltMount ${
       status.altmount_ready ? "ready" : "not ready"
     }`;
+    serviceMetricEl.textContent = `${readyCount}/2 Ready`;
+    statusEl.textContent = statusText;
+    sidebarStatusEl.textContent = statusText;
     renderServiceStrip(status);
   } catch (error) {
     statusEl.textContent = `Status failed: ${error.message}`;
+    sidebarStatusEl.textContent = "Status failed";
+    serviceMetricEl.textContent = "Offline";
     serviceStripEl.innerHTML = "";
   }
 }
@@ -334,6 +348,8 @@ function renderResults() {
         ? "unknown match"
         : `${Math.round(release.title_match.token_overlap * 100)}% title match`;
     const verdict = release.score?.verdict || "weak";
+    const qualityLabel = quality || "unknown quality";
+    const releaseIndexer = release.indexer || "unknown indexer";
     item.innerHTML = `
       <div class="score ${verdict}">
         <small>Score</small>
@@ -347,12 +363,10 @@ function renderResults() {
         }
         <div class="title">${escapeHtml(release.title)}</div>
         <div class="release-meta">
-          <span>${escapeHtml(release.indexer)}</span>
-          <span>${size}</span>
+          <span>${escapeHtml(releaseIndexer)}</span>
           <span>${escapeHtml(year)}</span>
           <span>${escapeHtml(overlap)}</span>
         </div>
-        <div class="quality-line">${escapeHtml(quality || "unknown quality")}</div>
         ${renderIndexerAttrs(release)}
         <div class="reasons">${release.score.reasons.map(escapeHtml).join(" · ")}</div>
         ${
@@ -360,6 +374,11 @@ function renderResults() {
             ? `<div class="decision">${notes.map(escapeHtml).join(" · ")}</div>`
             : `<div class="decision ok">Accepted</div>`
         }
+      </div>
+      <div class="release-quality">
+        <strong>${escapeHtml(qualityLabel)}</strong>
+        <span>${size}</span>
+        <span>${escapeHtml(releaseIndexer)}</span>
       </div>
       <button class="grab-action" type="button" ${decision.grab_allowed ? "" : "disabled"}>Grab</button>
     `;
@@ -419,6 +438,10 @@ function renderDownloads(downloads) {
   `;
   const queue = renderDownloadGroup("Queue", downloads.queue || []);
   const history = renderDownloadGroup("History", downloads.history || []);
+  const queueCount = (downloads.queue || []).length;
+  const historyCount = (downloads.history || []).length;
+  queueMetricEl.textContent = downloads.status || "Unknown";
+  queueMetricSubEl.textContent = `${queueCount} queued · ${historyCount} history · ${downloads.speed || "0 B/s"}`;
   downloadsEl.innerHTML = `${header}${queue}${history}`;
 }
 
@@ -506,6 +529,11 @@ async function refreshIndexers() {
       api("/api/indexers"),
       api("/api/prowlarr-diagnostics"),
     ]);
+    const enabledCount = indexers.filter((indexer) => indexer.enable === true).length;
+    const failureCount = (diagnostics.indexer_failures || []).length;
+    indexerMetricEl.textContent = `${enabledCount}/${indexers.length}`;
+    indexerMetricSubEl.textContent =
+      failureCount > 0 ? `${failureCount} failing in Prowlarr` : "No active failures";
     indexersEl.innerHTML = indexers
       .map((indexer) => {
         const state = indexer.enable === true ? "enabled" : "disabled";
@@ -557,6 +585,12 @@ function renderProwlarrDiagnostics(diagnostics) {
 async function refreshRequests() {
   try {
     const requests = await api("/api/requests");
+    const wantedCount = requests.filter((request) =>
+      ["no_results", "search_failed", "grab_failed"].includes(request.status)
+    ).length;
+    const grabbedCount = requests.filter((request) => request.status === "grabbed").length;
+    requestMetricEl.textContent = String(requests.length);
+    requestMetricSubEl.textContent = `${wantedCount} wanted · ${grabbedCount} grabbed`;
     requestsEl.innerHTML = requests
       .map((request) => {
         const best = request.best_title ? `<div class="meta">${escapeHtml(request.best_title)}</div>` : "";

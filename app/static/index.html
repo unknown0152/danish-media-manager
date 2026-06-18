@@ -13,7 +13,7 @@
           <div class="brand-mark" aria-hidden="true">DM</div>
           <div>
             <h1>Danish Media Manager</h1>
-            <p id="status">Checking services...</p>
+            <p id="sidebarStatus">Checking services...</p>
           </div>
         </div>
         <nav class="nav-list" aria-label="Primary">
@@ -23,64 +23,119 @@
           <a href="#prowlarrHealth">Health</a>
         </nav>
         <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
-        <button id="refreshQueue" class="queue-action" type="button">Refresh Queue</button>
+        <div class="sidebar-footer">
+          <span>DMM v0.29.0</span>
+          <button id="refreshQueue" class="queue-action" type="button">Refresh Queue</button>
+        </div>
       </aside>
 
       <main class="workbench">
-        <section class="command-center">
-          <div class="command-header">
-            <div>
-              <h2>Search</h2>
-            </div>
-            <label class="filter-toggle">
-              <input id="acceptedOnly" type="checkbox" />
-              Accepted only
-            </label>
+        <section class="hero-bar">
+          <div>
+            <span class="eyebrow">Media Operations</span>
+            <h2>Search, request, and recover releases</h2>
+            <p>Live request queue, indexer health, import checks, and AltMount state in one control surface.</p>
           </div>
+          <div class="hero-actions">
+            <button id="retryWanted" type="button">Retry wanted</button>
+          </div>
+        </section>
+
+        <section class="metric-grid" aria-label="Current status">
+          <article class="metric-card">
+            <span>Services</span>
+            <strong id="serviceMetric">Checking</strong>
+            <small id="status">Checking services...</small>
+          </article>
+          <article class="metric-card">
+            <span>Requests</span>
+            <strong id="requestMetric">0</strong>
+            <small id="requestMetricSub">No request data yet</small>
+          </article>
+          <article class="metric-card">
+            <span>Downloads</span>
+            <strong id="queueMetric">Unknown</strong>
+            <small id="queueMetricSub">Waiting for queue</small>
+          </article>
+          <article class="metric-card">
+            <span>Indexers</span>
+            <strong id="indexerMetric">Unknown</strong>
+            <small id="indexerMetricSub">Waiting for Prowlarr</small>
+          </article>
+        </section>
+
+        <section class="command-center">
           <div class="command-body">
-            <div class="segmented" role="group" aria-label="Media type">
-              <button class="active" data-type="movie" type="button">Movies</button>
-              <button data-type="tv" type="button">TV</button>
+            <div class="command-title">
+              <span class="eyebrow">Interactive Search</span>
+              <h2>Find the best release</h2>
+              <label class="filter-toggle">
+                <input id="acceptedOnly" type="checkbox" />
+                Accepted only
+              </label>
             </div>
-            <form id="searchForm">
-              <div class="search-field">
-                <span aria-hidden="true">/</span>
-                <input id="query" name="query" placeholder="Search title" autocomplete="off" required />
+            <div class="search-console">
+              <div class="segmented" role="group" aria-label="Media type">
+                <button class="active" data-type="movie" type="button">Movies</button>
+                <button data-type="tv" type="button">TV</button>
               </div>
-              <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
-                <option value="any">Any quality</option>
-                <option value="720p">720p+</option>
-                <option value="1080p">1080p+</option>
-                <option value="2160p">2160p only</option>
-              </select>
-              <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
-              <button type="submit" class="primary-action">Search</button>
-              <button id="requestBest" type="button">Request Best</button>
-            </form>
+              <form id="searchForm">
+                <div class="search-field">
+                  <span aria-hidden="true">/</span>
+                  <input id="query" name="query" placeholder="Search movie or series title" autocomplete="off" required />
+                </div>
+                <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
+                  <option value="any">Any quality</option>
+                  <option value="720p">720p+</option>
+                  <option value="1080p">1080p+</option>
+                  <option value="2160p">2160p only</option>
+                </select>
+                <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
+                <button type="submit" class="primary-action">Search</button>
+                <button id="requestBest" type="button">Request Best</button>
+              </form>
+            </div>
           </div>
         </section>
 
         <section class="content-grid">
           <div class="workspace">
             <div class="section-heading">
-              <h2>Results</h2>
-              <div class="section-line"></div>
+              <div>
+                <span class="eyebrow">Release Browser</span>
+                <h2>Results</h2>
+              </div>
+              <div class="table-legend">
+                <span>Score</span>
+                <span>Quality</span>
+                <span>Indexer</span>
+              </div>
             </div>
             <div id="metadata" class="metadata-card"></div>
             <div id="searchSummary" class="search-summary"></div>
-            <div id="results" class="results">
-              <div class="empty-state">
-                <div class="empty-mark">DMM</div>
-                <strong>No active search</strong>
-                <span>Waiting for title input.</span>
+            <div class="release-shell">
+              <div class="release-header" aria-hidden="true">
+                <span>Score</span>
+                <span>Release</span>
+                <span>Quality / Size</span>
+                <span>Action</span>
+              </div>
+              <div id="results" class="results">
+                <div class="empty-state">
+                  <div class="empty-mark">DM</div>
+                  <strong>No active search</strong>
+                  <span>Search or open a stored request to inspect releases.</span>
+                </div>
               </div>
             </div>
           </div>
           <aside class="inspector">
             <section class="side-section requests-section">
               <div class="side-heading">
-                <h2>Requests</h2>
-                <button id="retryWanted" type="button">Retry wanted</button>
+                <div>
+                  <span class="eyebrow">Wanted Board</span>
+                  <h2>Requests</h2>
+                </div>
               </div>
               <div id="requests" class="requests"></div>
             </section>
