@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.altmount import AltMountClient
 from app.config import Settings, get_settings
 from app.models import (
+    DownloadStatus,
     GrabRequest,
     GrabResponse,
     MediaRequest,
@@ -18,7 +19,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.4.0")
+app = FastAPI(title="Danish Media Manager", version="0.5.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -276,6 +277,14 @@ def grab_best_for_request(
 def queue(altmount_client: AltMountClient = Depends(altmount)) -> dict[str, object] | str:
     try:
         return altmount_client.queue()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/downloads", response_model=DownloadStatus)
+def downloads(altmount_client: AltMountClient = Depends(altmount)) -> DownloadStatus:
+    try:
+        return altmount_client.downloads()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

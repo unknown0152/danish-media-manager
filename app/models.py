@@ -105,3 +105,22 @@ class IndexerStatus(BaseModel):
     enable: bool | None = None
     priority: int | None = None
     tags: list[int] = Field(default_factory=list)
+
+
+class DownloadItem(BaseModel):
+    id: str | None = None
+    name: str
+    status: str
+    category: str | None = None
+    size_mb: float | None = None
+    progress_percent: float | None = None
+    time_left: str | None = None
+
+
+class DownloadStatus(BaseModel):
+    status: str
+    paused: bool = False
+    speed: str | None = None
+    size_left_mb: float | None = None
+    queue: list[DownloadItem] = Field(default_factory=list)
+    history: list[DownloadItem] = Field(default_factory=list)

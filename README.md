@@ -19,7 +19,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Rerun a request search without losing the request history.
 - Grab the stored best result manually when ready.
 - Send a selected release URL to AltMount through the SAB-compatible API.
-- Show AltMount queue JSON.
+- Show normalized AltMount download status, active queue, and recent history.
 - Show safe Prowlarr indexer diagnostics.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.
@@ -36,6 +36,7 @@ POST /api/requests
 GET  /api/requests
 POST /api/requests/{id}/search
 POST /api/requests/{id}/grab-best
+GET  /api/downloads
 ```
 
 ## Run Locally
@@ -96,5 +97,4 @@ The container expects to be on the same Docker network as `prowlarr` and
 - Add provider/indexer failure tracking.
 - Add per-folder request targets.
 - Add import/symlink verification.
-- Add proper queue cards instead of raw JSON.
 - Add user accounts only if this becomes exposed outside the LAN.

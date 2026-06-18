@@ -224,12 +224,38 @@ pre {
   color: var(--muted);
 }
 
+.downloads,
 .grabs,
 .requests {
   display: grid;
   gap: 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.download-summary,
+.download-item {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px;
+  background: #10141b;
+}
+
+.download-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.download-group {
+  display: grid;
+  gap: 6px;
+}
+
+.download-item {
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .request {

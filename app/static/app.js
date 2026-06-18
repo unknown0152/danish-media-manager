@@ -6,7 +6,7 @@ const state = {
 
 const statusEl = document.querySelector("#status");
 const resultsEl = document.querySelector("#results");
-const queueEl = document.querySelector("#queue");
+const downloadsEl = document.querySelector("#downloads");
 const grabsEl = document.querySelector("#grabs");
 const indexersEl = document.querySelector("#indexers");
 const requestsEl = document.querySelector("#requests");
@@ -172,11 +172,56 @@ async function grab(release) {
 
 async function refreshQueue() {
   try {
-    const queue = await api("/api/queue");
-    queueEl.textContent = JSON.stringify(queue, null, 2);
+    const downloads = await api("/api/downloads");
+    renderDownloads(downloads);
   } catch (error) {
-    queueEl.textContent = `Queue failed: ${error.message}`;
+    downloadsEl.innerHTML = `<div>Downloads failed: ${escapeHtml(error.message)}</div>`;
   }
+}
+
+function renderDownloads(downloads) {
+  const header = `
+    <div class="download-summary">
+      <strong>${escapeHtml(downloads.status || "unknown")}</strong>
+      <span>${escapeHtml(downloads.speed || "0 B/s")}</span>
+      ${
+        downloads.size_left_mb === null || downloads.size_left_mb === undefined
+          ? ""
+          : `<span>${Number(downloads.size_left_mb).toFixed(1)} MB left</span>`
+      }
+    </div>
+  `;
+  const queue = renderDownloadGroup("Queue", downloads.queue || []);
+  const history = renderDownloadGroup("History", downloads.history || []);
+  downloadsEl.innerHTML = `${header}${queue}${history}`;
+}
+
+function renderDownloadGroup(label, items) {
+  if (!items.length) {
+    return `<div class="download-group"><div class="meta">${label}: empty</div></div>`;
+  }
+  return `
+    <div class="download-group">
+      <div class="meta">${label}</div>
+      ${items.map(renderDownloadItem).join("")}
+    </div>
+  `;
+}
+
+function renderDownloadItem(item) {
+  const size =
+    item.size_mb === null || item.size_mb === undefined ? "" : `${Number(item.size_mb).toFixed(1)} MB`;
+  const progress =
+    item.progress_percent === null || item.progress_percent === undefined
+      ? ""
+      : `${Number(item.progress_percent).toFixed(0)}%`;
+  const meta = [item.status, item.category, size, progress, item.time_left].filter(Boolean).join(" · ");
+  return `
+    <div class="download-item">
+      <div>${escapeHtml(item.name)}</div>
+      <div class="meta">${escapeHtml(meta)}</div>
+    </div>
+  `;
 }
 
 async function refreshGrabs() {
