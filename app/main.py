@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import json
+import re
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -35,8 +36,11 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.25.0")
+app = FastAPI(title="Danish Media Manager", version="0.26.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
+TV_SEASON_RE = re.compile(r"\bS\d{1,2}\b|\bSeason[ ._-]?\d{1,2}\b", re.IGNORECASE)
 
 
 @app.on_event("startup")
@@ -287,6 +291,14 @@ def desired_profile_name(settings: Settings, target: MediaTarget) -> str:
     if any(token in haystack for token in ("danish", "kids", "christmas", "classics")):
         return settings.danish_audio_profile_name
     return settings.danish_subtitles_profile_name
+
+
+def should_mark_seerr_available(media_type: str, title: str | None) -> bool:
+    if media_type == "movie":
+        return True
+    if media_type != "tv" or not title:
+        return False
+    return bool(TV_SEASON_RE.search(title)) and not TV_EPISODE_RE.search(title)
 
 
 def enrich_search_request(request: SearchRequest, metadata_result: MetadataResult) -> SearchRequest:
@@ -637,7 +649,8 @@ def sync_seerr_requests(
                             arr_client=arr_client,
                             request_store=request_store,
                         )
-                        seerr_client.mark_available(item)
+                        if should_mark_seerr_available(media_type, _str_or_none(existing.get("best_title"))):
+                            seerr_client.mark_available(item)
                         result.grabbed += 1
                 except Exception as exc:
                     result.grab_failed += 1
@@ -678,7 +691,8 @@ def sync_seerr_requests(
                         arr_client=arr_client,
                         request_store=request_store,
                     )
-                    seerr_client.mark_available(item)
+                    if should_mark_seerr_available(media_type, response.request.best_title):
+                        seerr_client.mark_available(item)
                     result.grabbed += 1
                 except Exception as exc:
                     request_store.set_media_request_status(response.request.id, "grab_failed")

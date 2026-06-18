@@ -1,5 +1,5 @@
 from app.config import Settings
-from app.main import sync_seerr_requests
+from app.main import should_mark_seerr_available, sync_seerr_requests
 
 
 class FakeSeerrClient:
@@ -44,3 +44,9 @@ def test_seerr_sync_skips_requests_without_exact_target_path() -> None:
         "Seerr request 10: missing rootFolder",
         "Seerr request 11: unconfigured rootFolder /media/not-configured",
     ]
+
+
+def test_tv_episode_release_does_not_mark_whole_show_available() -> None:
+    assert should_mark_seerr_available("movie", "Primer.2004.NORDiC.1080p.BluRay") is True
+    assert should_mark_seerr_available("tv", "The.Last.of.Us.2023.S02E07.NORDiC.2160p") is False
+    assert should_mark_seerr_available("tv", "The.Chestnut.Man.2021.S01.2160p.WEB-DL") is True
