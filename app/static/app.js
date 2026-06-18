@@ -99,7 +99,10 @@ function renderServiceStrip(status) {
     .map(
       (card) => `
         <div class="service-card ${card.ok ? "ok" : "warn"}">
-          <span>${escapeHtml(card.label)}</span>
+          <div class="service-state">
+            <span class="state-dot"></span>
+            <span>${escapeHtml(card.label)}</span>
+          </div>
           <strong>${escapeHtml(card.state)}</strong>
           <small>${escapeHtml(card.detail)}</small>
         </div>
@@ -226,8 +229,9 @@ function renderSearchSummary(indexers) {
         indexer.best_score === null || indexer.best_score === undefined ? "" : ` · best ${indexer.best_score}`;
       return `
         <div class="summary-chip">
-          <strong>${escapeHtml(indexer.name)}</strong>
-          <span>${indexer.accepted}/${indexer.total} accepted${score}</span>
+          <span>${escapeHtml(indexer.name)}</span>
+          <strong>${indexer.accepted}/${indexer.total}</strong>
+          <small>${escapeHtml(`accepted${score}`)}</small>
         </div>
       `;
     })
@@ -241,18 +245,16 @@ function renderSearchSummary(indexers) {
 
 function renderQualitySummary(quality) {
   const resolutions = formatCountMap(quality.resolutions);
-  const sources = formatCountMap(quality.sources);
   const accepted = formatCountMap(quality.accepted_by_resolution);
   const best = [quality.best_resolution, quality.best_source, quality.best_score ? `score ${quality.best_score}` : ""]
     .filter(Boolean)
     .join(" · ");
   return `
     <div class="summary-chip quality-chip">
-      <strong>Quality</strong>
-      <span>${escapeHtml(best || "no best")}</span>
-      <span>${escapeHtml(resolutions || "no resolutions")}</span>
-      <span>${escapeHtml(sources || "no sources")}</span>
-      <span>${escapeHtml(accepted ? `accepted ${accepted}` : "none accepted")}</span>
+      <span>Quality</span>
+      <strong>${escapeHtml(best || "no best")}</strong>
+      <small>${escapeHtml(resolutions || "no resolutions")}</small>
+      <small>${escapeHtml(accepted ? `accepted ${accepted}` : "none accepted")}</small>
     </div>
   `;
 }
@@ -270,8 +272,8 @@ function renderReasonSummary(label, values) {
   }
   return `
     <div class="summary-chip reason-chip">
-      <strong>${escapeHtml(label)}</strong>
-      <span>${escapeHtml(formatted)}</span>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(formatted)}</strong>
     </div>
   `;
 }
@@ -331,20 +333,26 @@ function renderResults() {
       release.title_match?.token_overlap === null || release.title_match?.token_overlap === undefined
         ? "unknown match"
         : `${Math.round(release.title_match.token_overlap * 100)}% title match`;
+    const verdict = release.score?.verdict || "weak";
     item.innerHTML = `
-      <div class="score ${release.score.verdict}">
+      <div class="score ${verdict}">
+        <small>Score</small>
         <span>${release.score.score}</span>
       </div>
-      <div>
+      <div class="release-main">
         ${
           state.currentRequest?.best_result_id === release.result_id
             ? `<div class="badge">Best pick</div>`
             : ""
         }
         <div class="title">${escapeHtml(release.title)}</div>
-        <div class="meta">${escapeHtml(release.indexer)} · ${size}</div>
-        <div class="meta">${escapeHtml(quality)}</div>
-        <div class="meta">${escapeHtml(year)} · ${escapeHtml(overlap)}</div>
+        <div class="release-meta">
+          <span>${escapeHtml(release.indexer)}</span>
+          <span>${size}</span>
+          <span>${escapeHtml(year)}</span>
+          <span>${escapeHtml(overlap)}</span>
+        </div>
+        <div class="quality-line">${escapeHtml(quality || "unknown quality")}</div>
         ${renderIndexerAttrs(release)}
         <div class="reasons">${release.score.reasons.map(escapeHtml).join(" · ")}</div>
         ${
@@ -353,7 +361,7 @@ function renderResults() {
             : `<div class="decision ok">Accepted</div>`
         }
       </div>
-      <button type="button" ${decision.grab_allowed ? "" : "disabled"}>Grab</button>
+      <button class="grab-action" type="button" ${decision.grab_allowed ? "" : "disabled"}>Grab</button>
     `;
     const button = item.querySelector("button");
     if (decision.grab_allowed) {
@@ -394,12 +402,18 @@ async function refreshQueue() {
 function renderDownloads(downloads) {
   const header = `
     <div class="download-summary">
-      <strong>${escapeHtml(downloads.status || "unknown")}</strong>
-      <span>${escapeHtml(downloads.speed || "0 B/s")}</span>
+      <div>
+        <span>State</span>
+        <strong>${escapeHtml(downloads.status || "unknown")}</strong>
+      </div>
+      <div>
+        <span>Speed</span>
+        <strong>${escapeHtml(downloads.speed || "0 B/s")}</strong>
+      </div>
       ${
         downloads.size_left_mb === null || downloads.size_left_mb === undefined
           ? ""
-          : `<span>${Number(downloads.size_left_mb).toFixed(1)} MB left</span>`
+          : `<div><span>Remaining</span><strong>${Number(downloads.size_left_mb).toFixed(1)} MB</strong></div>`
       }
     </div>
   `;
@@ -414,7 +428,7 @@ function renderDownloadGroup(label, items) {
   }
   return `
     <div class="download-group">
-      <div class="meta">${label}</div>
+      <div class="group-label">${label}</div>
       ${items.map(renderDownloadItem).join("")}
     </div>
   `;
@@ -430,7 +444,7 @@ function renderDownloadItem(item) {
   const meta = [item.status, item.category, size, progress, item.time_left].filter(Boolean).join(" · ");
   return `
     <div class="download-item">
-      <div>${escapeHtml(item.name)}</div>
+      <strong>${escapeHtml(item.name)}</strong>
       <div class="meta">${escapeHtml(meta)}</div>
     </div>
   `;
@@ -450,14 +464,14 @@ function renderImportHealth(health) {
   const probes = [health.import_dir, health.mount_path, health.media_root]
     .map((probe) => {
       const state = probe.exists && probe.is_dir && probe.readable ? "ok" : "warn";
-      return `<div class="probe ${state}">${escapeHtml(probe.path)} · ${probe.readable ? "ready" : "not ready"}</div>`;
+      return `<div class="probe ${state}"><strong>${escapeHtml(probe.path)}</strong><span>${probe.readable ? "ready" : "not ready"}</span></div>`;
     })
     .join("");
   const samples = (health.sample_symlinks || [])
     .slice(0, 3)
     .map((item) => {
       const state = item.target_under_mount && item.target_exists ? "ok" : "warn";
-      return `<div class="probe ${state}">${escapeHtml(item.path)} -> ${escapeHtml(item.target || "missing")}</div>`;
+      return `<div class="probe ${state}"><strong>${escapeHtml(item.path)}</strong><span>${escapeHtml(item.target || "missing")}</span></div>`;
     })
     .join("");
   importHealthEl.innerHTML = `
@@ -472,7 +486,14 @@ async function refreshGrabs() {
   try {
     const grabs = await api("/api/grabs");
     grabsEl.innerHTML = grabs
-      .map((grab) => `<div>${escapeHtml(grab.created_at)} · ${escapeHtml(grab.title)}</div>`)
+      .map(
+        (grab) => `
+          <div class="mini-row">
+            <strong>${escapeHtml(grab.title)}</strong>
+            <span>${escapeHtml(grab.created_at)}</span>
+          </div>
+        `
+      )
       .join("");
   } catch (error) {
     grabsEl.innerHTML = `<div>History failed: ${escapeHtml(error.message)}</div>`;
@@ -488,7 +509,12 @@ async function refreshIndexers() {
     indexersEl.innerHTML = indexers
       .map((indexer) => {
         const state = indexer.enable === true ? "enabled" : "disabled";
-        return `<div>${escapeHtml(indexer.name)} · ${escapeHtml(indexer.protocol || "")} · ${state}</div>`;
+        return `
+          <div class="mini-row">
+            <strong>${escapeHtml(indexer.name)}</strong>
+            <span>${escapeHtml(indexer.protocol || "")} · ${state}</span>
+          </div>
+        `;
       })
       .join("");
     renderProwlarrDiagnostics(diagnostics);
@@ -509,20 +535,20 @@ function renderProwlarrDiagnostics(diagnostics) {
   const hintHtml = hints
     .map((item) => {
       const state = item.level === "error" ? "bad" : "warn";
-      return `<div class="probe ${state}"><strong>Hint</strong><div>${escapeHtml(item.message)}</div></div>`;
+      return `<div class="probe ${state}"><strong>Hint</strong><span>${escapeHtml(item.message)}</span></div>`;
     })
     .join("");
   const failureHtml = failures
     .map((item) => {
       const meta = [item.disabled_till, item.most_recent_failure, item.level].filter(Boolean).join(" · ");
-      return `<div class="probe bad"><strong>${escapeHtml(item.name)}</strong><div>${escapeHtml(meta || "Indexer failure")}</div></div>`;
+      return `<div class="probe bad"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(meta || "Indexer failure")}</span></div>`;
     })
     .join("");
   const healthHtml = health
     .map((item) => {
       const label = [item.source, item.type].filter(Boolean).join(" · ");
       const state = item.type === "error" ? "bad" : "warn";
-      return `<div class="probe ${state}"><strong>${escapeHtml(label || "Health")}</strong><div>${escapeHtml(item.message)}</div></div>`;
+      return `<div class="probe ${state}"><strong>${escapeHtml(label || "Health")}</strong><span>${escapeHtml(item.message)}</span></div>`;
     })
     .join("");
   prowlarrHealthEl.innerHTML = `${hintHtml}${failureHtml}${healthHtml}`;
@@ -541,21 +567,33 @@ async function refreshRequests() {
         const score =
           request.best_score === null || request.best_score === undefined ? "" : ` · ${request.best_score}`;
         const wanted = ["no_results", "search_failed", "grab_failed"].includes(request.status)
-          ? `<span class="wanted-badge">Wanted</span>`
+          ? `<span class="request-badge wanted">Wanted</span>`
           : "";
+        const statusClass = request.status === "grabbed" ? "done" : wanted ? "wanted" : "neutral";
+        const poster = request.metadata_poster_url
+          ? `<img class="request-poster" src="${escapeHtml(request.metadata_poster_url)}" alt="" loading="lazy" />`
+          : `<div class="request-poster fallback">${escapeHtml(request.media_type.slice(0, 2).toUpperCase())}</div>`;
         return `
-          <div class="request">
-            <div><strong>#${request.id}</strong> ${escapeHtml(request.query)}${score} ${wanted}</div>
-            <div class="meta">${escapeHtml(request.media_type)} · ${escapeHtml(request.status)} · ${
-              request.accepted
-            }/${request.total} accepted</div>
-            <div class="meta">${escapeHtml(target)}${metadata ? ` · ${escapeHtml(metadata)}` : ""}</div>
-            ${best}
-            <div class="request-actions">
-              <button type="button" data-search-request-id="${request.id}">Search</button>
-              <button type="button" data-request-id="${request.id}" ${
-                request.best_result_id ? "" : "disabled"
-              }>Grab best</button>
+          <div class="request ${statusClass}">
+            ${poster}
+            <div class="request-body">
+              <div class="request-top">
+                <strong>#${request.id} ${escapeHtml(request.query)}</strong>
+                ${wanted}
+              </div>
+              <div class="request-stats">
+                <span>${escapeHtml(request.media_type)}</span>
+                <span>${escapeHtml(request.status)}${score}</span>
+                <span>${request.accepted}/${request.total} accepted</span>
+              </div>
+              <div class="meta">${escapeHtml(target)}${metadata ? ` · ${escapeHtml(metadata)}` : ""}</div>
+              ${best ? `<div class="request-best">${best}</div>` : ""}
+              <div class="request-actions">
+                <button type="button" data-search-request-id="${request.id}">Search</button>
+                <button type="button" data-request-id="${request.id}" ${
+                  request.best_result_id ? "" : "disabled"
+                }>Grab best</button>
+              </div>
             </div>
           </div>
         `;

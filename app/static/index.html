@@ -7,80 +7,107 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <div>
-          <h1>Danish Media Manager</h1>
-          <p id="status">Checking services...</p>
+    <div class="app-frame">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">DM</div>
+          <div>
+            <h1>Danish Media Manager</h1>
+            <p id="status">Checking services...</p>
+          </div>
         </div>
-        <button id="refreshQueue" type="button">Queue</button>
-      </header>
+        <nav class="nav-list" aria-label="Primary">
+          <a href="#searchForm" class="active">Search</a>
+          <a href="#requests">Requests</a>
+          <a href="#downloads">Queue</a>
+          <a href="#prowlarrHealth">Health</a>
+        </nav>
+        <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
+        <button id="refreshQueue" class="queue-action" type="button">Refresh Queue</button>
+      </aside>
 
-      <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
-
-      <section class="toolbar">
-        <div class="segmented" role="group" aria-label="Media type">
-          <button class="active" data-type="movie" type="button">Movies</button>
-          <button data-type="tv" type="button">TV</button>
-        </div>
-        <form id="searchForm">
-          <input id="query" name="query" placeholder="Search title" autocomplete="off" required />
-          <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
-            <option value="any">Any quality</option>
-            <option value="720p">720p+</option>
-            <option value="1080p">1080p+</option>
-            <option value="2160p">2160p only</option>
-          </select>
-          <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
-          <button type="submit">Search</button>
-          <button id="requestBest" type="button">Request Best</button>
-        </form>
-      </section>
-
-      <section class="grid">
-        <div class="workspace-panel">
-          <div class="panel-heading">
-            <h2>Results</h2>
+      <main class="workbench">
+        <section class="command-center">
+          <div class="command-header">
+            <div>
+              <h2>Search</h2>
+            </div>
             <label class="filter-toggle">
               <input id="acceptedOnly" type="checkbox" />
               Accepted only
             </label>
           </div>
-          <div id="metadata" class="metadata-card"></div>
-          <div id="searchSummary" class="search-summary"></div>
-          <div id="results" class="results"></div>
-        </div>
-        <aside class="rail">
-          <section class="rail-panel">
-            <h2>Downloads</h2>
-            <div id="downloads" class="downloads"></div>
-          </section>
-          <section class="rail-panel">
-            <h2>Import Health</h2>
-            <div id="importHealth" class="health"></div>
-          </section>
-          <section class="rail-panel">
-            <h2>Indexers</h2>
-            <div id="indexers" class="grabs"></div>
-          </section>
-          <section class="rail-panel">
-            <h2>Prowlarr Health</h2>
-            <div id="prowlarrHealth" class="health"></div>
-          </section>
-          <section class="rail-panel">
-            <div class="rail-heading">
-              <h2>Requests</h2>
-              <button id="retryWanted" type="button">Retry wanted</button>
+          <div class="command-body">
+            <div class="segmented" role="group" aria-label="Media type">
+              <button class="active" data-type="movie" type="button">Movies</button>
+              <button data-type="tv" type="button">TV</button>
             </div>
-            <div id="requests" class="requests"></div>
-          </section>
-          <section class="rail-panel">
-            <h2>Recent Grabs</h2>
-            <div id="grabs" class="grabs"></div>
-          </section>
-        </aside>
-      </section>
-    </main>
+            <form id="searchForm">
+              <div class="search-field">
+                <span aria-hidden="true">/</span>
+                <input id="query" name="query" placeholder="Search title" autocomplete="off" required />
+              </div>
+              <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
+                <option value="any">Any quality</option>
+                <option value="720p">720p+</option>
+                <option value="1080p">1080p+</option>
+                <option value="2160p">2160p only</option>
+              </select>
+              <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
+              <button type="submit" class="primary-action">Search</button>
+              <button id="requestBest" type="button">Request Best</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <div class="workspace">
+            <div class="section-heading">
+              <h2>Results</h2>
+              <div class="section-line"></div>
+            </div>
+            <div id="metadata" class="metadata-card"></div>
+            <div id="searchSummary" class="search-summary"></div>
+            <div id="results" class="results">
+              <div class="empty-state">
+                <div class="empty-mark">DMM</div>
+                <strong>No active search</strong>
+                <span>Waiting for title input.</span>
+              </div>
+            </div>
+          </div>
+          <aside class="inspector">
+            <section class="side-section requests-section">
+              <div class="side-heading">
+                <h2>Requests</h2>
+                <button id="retryWanted" type="button">Retry wanted</button>
+              </div>
+              <div id="requests" class="requests"></div>
+            </section>
+            <section class="side-section downloads-section">
+              <h2>Downloads</h2>
+              <div id="downloads" class="downloads"></div>
+            </section>
+            <section class="side-section">
+              <h2>Import Health</h2>
+              <div id="importHealth" class="health"></div>
+            </section>
+            <section class="side-section">
+              <h2>Indexers</h2>
+              <div id="indexers" class="grabs"></div>
+            </section>
+            <section class="side-section">
+              <h2>Prowlarr Health</h2>
+              <div id="prowlarrHealth" class="health"></div>
+            </section>
+            <section class="side-section">
+              <h2>Recent Grabs</h2>
+              <div id="grabs" class="grabs"></div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
     <script src="/static/app.js"></script>
   </body>
 </html>
