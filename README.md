@@ -15,6 +15,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Parse title/year matching and reject wrong-year releases.
 - Show why one release ranks above another.
 - Show accepted/rejected counts and decision warnings.
+- Show quality diagnostics for each search: resolutions, sources, accepted resolutions, and best score.
 - Create persistent requests and store the current best release.
 - Rerun a request search without losing the request history.
 - Grab the stored best result manually when ready.

@@ -85,6 +85,16 @@ class IndexerSearchSummary(BaseModel):
     best_score: int | None = None
 
 
+class QualitySearchSummary(BaseModel):
+    resolutions: dict[str, int] = Field(default_factory=dict)
+    sources: dict[str, int] = Field(default_factory=dict)
+    verdicts: dict[str, int] = Field(default_factory=dict)
+    accepted_by_resolution: dict[str, int] = Field(default_factory=dict)
+    best_score: int | None = None
+    best_resolution: str | None = None
+    best_source: str | None = None
+
+
 class SearchResponse(BaseModel):
     query: str
     media_type: MediaType
@@ -92,6 +102,7 @@ class SearchResponse(BaseModel):
     accepted: int
     rejected: int
     indexers: list[IndexerSearchSummary] = Field(default_factory=list)
+    quality: QualitySearchSummary = Field(default_factory=QualitySearchSummary)
     releases: list[Release]
 
 

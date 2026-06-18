@@ -1,6 +1,6 @@
 from app.scoring import score_release
 from app.decision import decide_release
-from app.main import indexer_summaries
+from app.main import indexer_summaries, quality_summary
 from app.models import Release
 from app.quality import parse_quality
 from app.titlematch import match_title
@@ -149,3 +149,38 @@ def test_indexer_summaries_count_results_by_source() -> None:
         ("NZBgeek", 2, 1),
         ("altHUB", 1, 1),
     ]
+
+
+def test_quality_summary_counts_best_resolution_and_sources() -> None:
+    releases = []
+    for title in [
+        "The.Batman.2022.NORDiC.2160p.BluRay.x265",
+        "The.Batman.2022.NORDiC.1080p.WEB-DL.x265",
+        "The.Batman.2022.CAM.1080p.DKSUBS",
+    ]:
+        quality = parse_quality(title)
+        score = score_release(title, 20_000_000_000)
+        releases.append(
+            Release(
+                result_id=title,
+                title=title,
+                quality=quality,
+                score=score,
+                decision=decide_release(
+                    score=score,
+                    quality=quality,
+                    title_match=match_title("The Batman 2022", title),
+                    size=20_000_000_000,
+                    download_url="http://example.invalid/file.nzb",
+                ),
+            )
+        )
+
+    summary = quality_summary(releases)
+
+    assert summary.resolutions["1080p"] == 2
+    assert summary.resolutions["2160p"] == 1
+    assert summary.sources["bluray"] == 1
+    assert summary.sources["web-dl"] == 1
+    assert summary.best_resolution == "2160p"
+    assert summary.accepted_by_resolution == {"2160p": 1, "1080p": 1}

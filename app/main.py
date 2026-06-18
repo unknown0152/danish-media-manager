@@ -15,6 +15,7 @@ from app.models import (
     MediaRequestCreate,
     MediaRequestResponse,
     ProwlarrDiagnostics,
+    QualitySearchSummary,
     Release,
     SearchRequest,
     SearchResponse,
@@ -23,7 +24,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.8.0")
+app = FastAPI(title="Danish Media Manager", version="0.9.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -56,6 +57,7 @@ def build_search_response(
         accepted=accepted,
         rejected=len(releases) - accepted,
         indexers=indexer_summaries(releases),
+        quality=quality_summary(releases),
         releases=releases,
     )
 
@@ -74,6 +76,38 @@ def indexer_summaries(releases: list[Release]) -> list[IndexerSearchSummary]:
         if summary.best_score is None or release.score.score > summary.best_score:
             summary.best_score = release.score.score
     return sorted(grouped.values(), key=lambda item: (item.accepted, item.total), reverse=True)
+
+
+def quality_summary(releases: list[Release]) -> QualitySearchSummary:
+    summary = QualitySearchSummary()
+    best: Release | None = None
+    for release in releases:
+        resolution = release.quality.resolution or "unknown"
+        source = release.quality.source or "unknown"
+        verdict = release.score.verdict or "unknown"
+        summary.resolutions[resolution] = summary.resolutions.get(resolution, 0) + 1
+        summary.sources[source] = summary.sources.get(source, 0) + 1
+        summary.verdicts[verdict] = summary.verdicts.get(verdict, 0) + 1
+        if release.decision.accepted:
+            summary.accepted_by_resolution[resolution] = (
+                summary.accepted_by_resolution.get(resolution, 0) + 1
+            )
+        if best is None or release.score.score > best.score.score:
+            best = release
+
+    if best:
+        summary.best_score = best.score.score
+        summary.best_resolution = best.quality.resolution
+        summary.best_source = best.quality.source
+    summary.resolutions = _sort_count_map(summary.resolutions)
+    summary.sources = _sort_count_map(summary.sources)
+    summary.verdicts = _sort_count_map(summary.verdicts)
+    summary.accepted_by_resolution = _sort_count_map(summary.accepted_by_resolution)
+    return summary
+
+
+def _sort_count_map(values: dict[str, int]) -> dict[str, int]:
+    return dict(sorted(values.items(), key=lambda item: item[1], reverse=True))
 
 
 def best_release(releases: list[Release]) -> Release | None:

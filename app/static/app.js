@@ -1,6 +1,7 @@
 const state = {
   mediaType: "movie",
   releases: [],
+  quality: null,
   currentRequest: null,
 };
 
@@ -66,6 +67,7 @@ async function search(query) {
       body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
     });
     state.releases = data.releases;
+    state.quality = data.quality || null;
     state.currentRequest = null;
     statusEl.textContent = `${data.total} results · ${data.accepted} accepted · ${data.rejected} rejected`;
     renderSearchSummary(data.indexers || []);
@@ -85,6 +87,7 @@ async function createRequest(query) {
       body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
     });
     state.releases = data.search.releases;
+    state.quality = data.search.quality || null;
     state.currentRequest = data.request;
     statusEl.textContent = `Request #${data.request.id} · ${data.search.total} results · ${data.search.accepted} accepted`;
     renderSearchSummary(data.search.indexers || []);
@@ -113,6 +116,33 @@ function renderSearchSummary(indexers) {
       `;
     })
     .join("");
+  if (state.quality) {
+    searchSummaryEl.innerHTML += renderQualitySummary(state.quality);
+  }
+}
+
+function renderQualitySummary(quality) {
+  const resolutions = formatCountMap(quality.resolutions);
+  const sources = formatCountMap(quality.sources);
+  const accepted = formatCountMap(quality.accepted_by_resolution);
+  const best = [quality.best_resolution, quality.best_source, quality.best_score ? `score ${quality.best_score}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  return `
+    <div class="summary-chip quality-chip">
+      <strong>Quality</strong>
+      <span>${escapeHtml(best || "no best")}</span>
+      <span>${escapeHtml(resolutions || "no resolutions")}</span>
+      <span>${escapeHtml(sources || "no sources")}</span>
+      <span>${escapeHtml(accepted ? `accepted ${accepted}` : "none accepted")}</span>
+    </div>
+  `;
+}
+
+function formatCountMap(values) {
+  return Object.entries(values || {})
+    .map(([key, count]) => `${key} ${count}`)
+    .join(" · ");
 }
 
 function renderResults() {
