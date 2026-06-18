@@ -8,6 +8,7 @@ from app.models import (
     DownloadStatus,
     GrabRequest,
     GrabResponse,
+    IndexerSearchSummary,
     MediaRequest,
     MediaRequestCreate,
     MediaRequestResponse,
@@ -19,7 +20,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.5.0")
+app = FastAPI(title="Danish Media Manager", version="0.6.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -51,8 +52,25 @@ def build_search_response(
         total=len(releases),
         accepted=accepted,
         rejected=len(releases) - accepted,
+        indexers=indexer_summaries(releases),
         releases=releases,
     )
+
+
+def indexer_summaries(releases: list[Release]) -> list[IndexerSearchSummary]:
+    grouped: dict[tuple[int | None, str], IndexerSearchSummary] = {}
+    for release in releases:
+        key = (release.indexer_id, release.indexer or "Unknown")
+        summary = grouped.setdefault(
+            key,
+            IndexerSearchSummary(id=release.indexer_id, name=release.indexer or "Unknown"),
+        )
+        summary.total += 1
+        if release.decision.accepted:
+            summary.accepted += 1
+        if summary.best_score is None or release.score.score > summary.best_score:
+            summary.best_score = release.score.score
+    return sorted(grouped.values(), key=lambda item: (item.accepted, item.total), reverse=True)
 
 
 def best_release(releases: list[Release]) -> Release | None:

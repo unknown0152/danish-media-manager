@@ -20,6 +20,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Grab the stored best result manually when ready.
 - Send a selected release URL to AltMount through the SAB-compatible API.
 - Show normalized AltMount download status, active queue, and recent history.
+- Show per-search Prowlarr indexer result counts and best scores.
 - Show safe Prowlarr indexer diagnostics.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.

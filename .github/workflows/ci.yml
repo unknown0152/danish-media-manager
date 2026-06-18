@@ -27,6 +27,8 @@ jobs:
         run: pytest -q
       - name: Lint
         run: ruff check .
+      - name: JavaScript syntax
+        run: node --check app/static/app.js
 
   docker:
     runs-on: ubuntu-latest
@@ -53,4 +55,3 @@ jobs:
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-

@@ -143,6 +143,27 @@ input {
   gap: 10px;
 }
 
+.search-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.summary-chip {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 7px 9px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summary-chip strong {
+  color: var(--text);
+  margin-right: 6px;
+}
+
 .release {
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr) auto;

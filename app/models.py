@@ -77,12 +77,21 @@ class Release(BaseModel):
     decision: Decision
 
 
+class IndexerSearchSummary(BaseModel):
+    id: int | None = None
+    name: str
+    total: int = 0
+    accepted: int = 0
+    best_score: int | None = None
+
+
 class SearchResponse(BaseModel):
     query: str
     media_type: MediaType
     total: int
     accepted: int
     rejected: int
+    indexers: list[IndexerSearchSummary] = Field(default_factory=list)
     releases: list[Release]
 
 

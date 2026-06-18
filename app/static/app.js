@@ -5,6 +5,7 @@ const state = {
 };
 
 const statusEl = document.querySelector("#status");
+const searchSummaryEl = document.querySelector("#searchSummary");
 const resultsEl = document.querySelector("#results");
 const downloadsEl = document.querySelector("#downloads");
 const grabsEl = document.querySelector("#grabs");
@@ -65,8 +66,10 @@ async function search(query) {
     state.releases = data.releases;
     state.currentRequest = null;
     statusEl.textContent = `${data.total} results · ${data.accepted} accepted · ${data.rejected} rejected`;
+    renderSearchSummary(data.indexers || []);
     renderResults();
   } catch (error) {
+    searchSummaryEl.innerHTML = "";
     resultsEl.innerHTML = `<p>Search failed: ${escapeHtml(error.message)}</p>`;
   }
 }
@@ -82,11 +85,32 @@ async function createRequest(query) {
     state.releases = data.search.releases;
     state.currentRequest = data.request;
     statusEl.textContent = `Request #${data.request.id} · ${data.search.total} results · ${data.search.accepted} accepted`;
+    renderSearchSummary(data.search.indexers || []);
     renderResults();
     await refreshRequests();
   } catch (error) {
+    searchSummaryEl.innerHTML = "";
     resultsEl.innerHTML = `<p>Request failed: ${escapeHtml(error.message)}</p>`;
   }
+}
+
+function renderSearchSummary(indexers) {
+  if (!indexers.length) {
+    searchSummaryEl.innerHTML = "";
+    return;
+  }
+  searchSummaryEl.innerHTML = indexers
+    .map((indexer) => {
+      const score =
+        indexer.best_score === null || indexer.best_score === undefined ? "" : ` · best ${indexer.best_score}`;
+      return `
+        <div class="summary-chip">
+          <strong>${escapeHtml(indexer.name)}</strong>
+          <span>${indexer.accepted}/${indexer.total} accepted${score}</span>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function renderResults() {

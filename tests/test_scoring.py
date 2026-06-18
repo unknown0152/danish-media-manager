@@ -1,5 +1,6 @@
 from app.scoring import score_release
 from app.decision import decide_release
+from app.main import indexer_summaries
 from app.models import Release
 from app.quality import parse_quality
 from app.titlematch import match_title
@@ -113,3 +114,38 @@ def test_wrong_year_is_rejected() -> None:
 
     assert not decision.grab_allowed
     assert any(reason.startswith("Wrong year") for reason in decision.rejections)
+
+
+def test_indexer_summaries_count_results_by_source() -> None:
+    releases = []
+    for title, indexer, indexer_id in [
+        ("The.Batman.2022.NORDiC.2160p.BluRay.x265", "NZBgeek", 1),
+        ("The.Batman.2022.CAM.1080p.DKSUBS", "NZBgeek", 1),
+        ("The.Batman.2022.NORDiC.1080p.WEB-DL.x265", "altHUB", 2),
+    ]:
+        quality = parse_quality(title)
+        score = score_release(title, 20_000_000_000)
+        releases.append(
+            Release(
+                result_id=title,
+                title=title,
+                indexer=indexer,
+                indexer_id=indexer_id,
+                quality=quality,
+                score=score,
+                decision=decide_release(
+                    score=score,
+                    quality=quality,
+                    title_match=match_title("The Batman 2022", title),
+                    size=20_000_000_000,
+                    download_url="http://example.invalid/file.nzb",
+                ),
+            )
+        )
+
+    summaries = indexer_summaries(releases)
+
+    assert [(summary.name, summary.total, summary.accepted) for summary in summaries] == [
+        ("NZBgeek", 2, 1),
+        ("altHUB", 1, 1),
+    ]
