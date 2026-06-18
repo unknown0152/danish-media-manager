@@ -11,6 +11,7 @@ const downloadsEl = document.querySelector("#downloads");
 const importHealthEl = document.querySelector("#importHealth");
 const grabsEl = document.querySelector("#grabs");
 const indexersEl = document.querySelector("#indexers");
+const prowlarrHealthEl = document.querySelector("#prowlarrHealth");
 const requestsEl = document.querySelector("#requests");
 const searchForm = document.querySelector("#searchForm");
 const queryInput = document.querySelector("#query");
@@ -295,16 +296,43 @@ async function refreshGrabs() {
 
 async function refreshIndexers() {
   try {
-    const indexers = await api("/api/indexers");
+    const [indexers, diagnostics] = await Promise.all([
+      api("/api/indexers"),
+      api("/api/prowlarr-diagnostics"),
+    ]);
     indexersEl.innerHTML = indexers
       .map((indexer) => {
         const state = indexer.enable === true ? "enabled" : "disabled";
         return `<div>${escapeHtml(indexer.name)} · ${escapeHtml(indexer.protocol || "")} · ${state}</div>`;
       })
       .join("");
+    renderProwlarrDiagnostics(diagnostics);
   } catch (error) {
     indexersEl.innerHTML = `<div>Indexers failed: ${escapeHtml(error.message)}</div>`;
+    prowlarrHealthEl.innerHTML = "";
   }
+}
+
+function renderProwlarrDiagnostics(diagnostics) {
+  const failures = diagnostics.indexer_failures || [];
+  const health = diagnostics.health || [];
+  if (!failures.length && !health.length) {
+    prowlarrHealthEl.innerHTML = `<div class="probe ok">No active Prowlarr health issues</div>`;
+    return;
+  }
+  const failureHtml = failures
+    .map((item) => {
+      const meta = [item.disabled_till, item.most_recent_failure, item.level].filter(Boolean).join(" · ");
+      return `<div class="probe warn"><strong>${escapeHtml(item.name)}</strong><div>${escapeHtml(meta || "Indexer failure")}</div></div>`;
+    })
+    .join("");
+  const healthHtml = health
+    .map((item) => {
+      const label = [item.source, item.type].filter(Boolean).join(" · ");
+      return `<div class="probe warn"><strong>${escapeHtml(label || "Health")}</strong><div>${escapeHtml(item.message)}</div></div>`;
+    })
+    .join("");
+  prowlarrHealthEl.innerHTML = `${failureHtml}${healthHtml}`;
 }
 
 async function refreshRequests() {

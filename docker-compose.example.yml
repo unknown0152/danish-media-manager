@@ -1,6 +1,6 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.7.0
+    image: ghcr.io/unknown0152/danish-media-manager:v0.8.0
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696

@@ -5,7 +5,14 @@ import httpx
 
 from app.config import Settings
 from app.decision import decide_release
-from app.models import IndexerStatus, Release, SearchRequest
+from app.models import (
+    HealthIssue,
+    IndexerFailure,
+    IndexerStatus,
+    ProwlarrDiagnostics,
+    Release,
+    SearchRequest,
+)
 from app.quality import parse_quality
 from app.scoring import score_release
 from app.titlematch import match_title
@@ -88,6 +95,28 @@ class ProwlarrClient:
             if isinstance(item, dict)
         ]
 
+    def diagnostics(self) -> ProwlarrDiagnostics:
+        if not self.api_key:
+            raise RuntimeError("PROWLARR_API_KEY is not set")
+
+        indexers = self.indexers()
+        statuses = self._get_list("/api/v1/indexerstatus")
+        health = self._get_list("/api/v1/health")
+        return diagnostics_from_payloads(indexers, statuses, health)
+
+    def _get_list(self, path: str) -> list[dict[str, Any]]:
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.get(
+                f"{self.base_url}{path}",
+                headers={"X-Api-Key": self.api_key},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        if not isinstance(data, list):
+            raise RuntimeError(f"Unexpected Prowlarr response for {path}: {type(data).__name__}")
+        return [item for item in data if isinstance(item, dict)]
+
     def _release_from_item(self, item: dict[str, Any], query: str) -> Release:
         title = str(item.get("title") or item.get("releaseTitle") or "<untitled>")
         size = _int_or_none(item.get("size"))
@@ -133,6 +162,42 @@ def _str_or_none(value: Any) -> str | None:
         return None
     text = str(value)
     return text or None
+
+
+def diagnostics_from_payloads(
+    indexers: list[IndexerStatus],
+    statuses: list[dict[str, Any]],
+    health: list[dict[str, Any]],
+) -> ProwlarrDiagnostics:
+    names = {indexer.id: indexer.name for indexer in indexers}
+    return ProwlarrDiagnostics(
+        indexer_failures=[
+            IndexerFailure(
+                id=_int_or_none(item.get("indexerId") or item.get("indexer_id")),
+                name=names.get(
+                    _int_or_none(item.get("indexerId") or item.get("indexer_id")),
+                    str(item.get("indexer") or item.get("name") or "Unknown"),
+                ),
+                disabled_till=_str_or_none(item.get("disabledTill") or item.get("disabled_till")),
+                initial_failure=_str_or_none(
+                    item.get("initialFailure") or item.get("initial_failure")
+                ),
+                most_recent_failure=_str_or_none(
+                    item.get("mostRecentFailure") or item.get("most_recent_failure")
+                ),
+                level=_str_or_none(item.get("escalationLevel") or item.get("level")),
+            )
+            for item in statuses
+        ],
+        health=[
+            HealthIssue(
+                source=_str_or_none(item.get("source")),
+                type=_str_or_none(item.get("type")),
+                message=str(item.get("message") or item.get("errorMessage") or item),
+            )
+            for item in health
+        ],
+    )
 
 
 def _result_id(title: str, guid: str | None, download_url: str | None) -> str:

@@ -22,6 +22,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Show normalized AltMount download status, active queue, and recent history.
 - Show per-search Prowlarr indexer result counts and best scores.
 - Check whether AltMount import paths are visible and using symlinks instead of regular files.
+- Show active Prowlarr indexer failures and health warnings.
 - Show safe Prowlarr indexer diagnostics.
 - Store recent grabs in SQLite.
 - Cache search results server-side so browser responses do not expose Prowlarr download URLs.
@@ -40,6 +41,7 @@ POST /api/requests/{id}/search
 POST /api/requests/{id}/grab-best
 GET  /api/downloads
 GET  /api/import-health
+GET  /api/prowlarr-diagnostics
 ```
 
 ## Run Locally
@@ -100,6 +102,5 @@ The container expects to be on the same Docker network as `prowlarr` and
 ## Roadmap
 
 - Add metadata lookup for movie/TV posters and exact year matching.
-- Add provider/indexer failure tracking.
 - Add per-folder request targets.
 - Add user accounts only if this becomes exposed outside the LAN.

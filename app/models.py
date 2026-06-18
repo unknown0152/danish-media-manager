@@ -116,6 +116,26 @@ class IndexerStatus(BaseModel):
     tags: list[int] = Field(default_factory=list)
 
 
+class IndexerFailure(BaseModel):
+    id: int | None = None
+    name: str
+    disabled_till: str | None = None
+    initial_failure: str | None = None
+    most_recent_failure: str | None = None
+    level: str | None = None
+
+
+class HealthIssue(BaseModel):
+    source: str | None = None
+    type: str | None = None
+    message: str
+
+
+class ProwlarrDiagnostics(BaseModel):
+    indexer_failures: list[IndexerFailure] = Field(default_factory=list)
+    health: list[HealthIssue] = Field(default_factory=list)
+
+
 class DownloadItem(BaseModel):
     id: str | None = None
     name: str

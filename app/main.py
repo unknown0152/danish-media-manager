@@ -14,6 +14,7 @@ from app.models import (
     MediaRequest,
     MediaRequestCreate,
     MediaRequestResponse,
+    ProwlarrDiagnostics,
     Release,
     SearchRequest,
     SearchResponse,
@@ -22,7 +23,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.7.0")
+app = FastAPI(title="Danish Media Manager", version="0.8.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -318,6 +319,16 @@ def import_health(settings: Settings = Depends(get_settings)) -> ImportHealth:
 def indexers(prowlarr_client: ProwlarrClient = Depends(prowlarr)) -> list[dict[str, object]]:
     try:
         return [indexer.model_dump() for indexer in prowlarr_client.indexers()]
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/prowlarr-diagnostics", response_model=ProwlarrDiagnostics)
+def prowlarr_diagnostics(
+    prowlarr_client: ProwlarrClient = Depends(prowlarr),
+) -> ProwlarrDiagnostics:
+    try:
+        return prowlarr_client.diagnostics()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
