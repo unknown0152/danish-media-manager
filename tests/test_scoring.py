@@ -1,4 +1,5 @@
 from app.scoring import score_release
+from app.decision import decide_release
 from app.models import Release
 from app.quality import parse_quality
 
@@ -47,13 +48,21 @@ def test_danish_subtitle_reason() -> None:
 
 
 def test_release_serialization_hides_sensitive_url_and_raw() -> None:
+    quality = parse_quality("Example.DKSUBS")
+    score = score_release("Example.DKSUBS")
     release = Release(
         result_id="abc",
         title="Example",
         download_url="http://prowlarr/download?apikey=secret",
         raw={"downloadUrl": "http://prowlarr/download?apikey=secret"},
-        quality=parse_quality("Example.DKSUBS"),
-        score=score_release("Example.DKSUBS"),
+        quality=quality,
+        score=score,
+        decision=decide_release(
+            score=score,
+            quality=quality,
+            size=5_000_000_000,
+            download_url="http://prowlarr/download?apikey=secret",
+        ),
     )
 
     dumped = release.model_dump()
@@ -61,3 +70,17 @@ def test_release_serialization_hides_sensitive_url_and_raw() -> None:
     assert "download_url" not in dumped
     assert "raw" not in dumped
     assert dumped["result_id"] == "abc"
+
+
+def test_bad_source_is_not_grabbable() -> None:
+    quality = parse_quality("Movie.2026.CAM.1080p.DKSUBS")
+    score = score_release("Movie.2026.CAM.1080p.DKSUBS")
+    decision = decide_release(
+        score=score,
+        quality=quality,
+        size=5_000_000_000,
+        download_url="http://example.invalid/file.nzb",
+    )
+
+    assert not decision.grab_allowed
+    assert "Rejected bad source quality" in decision.rejections

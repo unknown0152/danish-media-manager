@@ -1,6 +1,6 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.2.0
+    build: .
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696
@@ -15,7 +15,7 @@ services:
     ports:
       - "8088:8080"
 
-
 networks:
   media-stack:
     external: true
+

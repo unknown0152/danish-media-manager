@@ -7,6 +7,7 @@ const statusEl = document.querySelector("#status");
 const resultsEl = document.querySelector("#results");
 const queueEl = document.querySelector("#queue");
 const grabsEl = document.querySelector("#grabs");
+const indexersEl = document.querySelector("#indexers");
 const searchForm = document.querySelector("#searchForm");
 const queryInput = document.querySelector("#query");
 
@@ -57,6 +58,7 @@ async function search(query) {
       body: JSON.stringify({ query, media_type: state.mediaType, limit: 100 }),
     });
     state.releases = data.releases;
+    statusEl.textContent = `${data.total} results · ${data.accepted} accepted · ${data.rejected} rejected`;
     renderResults();
   } catch (error) {
     resultsEl.innerHTML = `<p>Search failed: ${escapeHtml(error.message)}</p>`;
@@ -81,6 +83,8 @@ function renderResults() {
     ]
       .filter(Boolean)
       .join(" · ");
+    const decision = release.decision || { grab_allowed: false, rejections: [], warnings: [] };
+    const notes = [...(decision.rejections || []), ...(decision.warnings || [])];
     item.innerHTML = `
       <div class="score ${release.score.verdict}">
         <span>${release.score.score}</span>
@@ -90,10 +94,18 @@ function renderResults() {
         <div class="meta">${escapeHtml(release.indexer)} · ${size}</div>
         <div class="meta">${escapeHtml(quality)}</div>
         <div class="reasons">${release.score.reasons.map(escapeHtml).join(" · ")}</div>
+        ${
+          notes.length
+            ? `<div class="decision">${notes.map(escapeHtml).join(" · ")}</div>`
+            : `<div class="decision ok">Accepted</div>`
+        }
       </div>
-      <button type="button">Grab</button>
+      <button type="button" ${decision.grab_allowed ? "" : "disabled"}>Grab</button>
     `;
-    item.querySelector("button").addEventListener("click", () => grab(release));
+    const button = item.querySelector("button");
+    if (decision.grab_allowed) {
+      button.addEventListener("click", () => grab(release));
+    }
     resultsEl.appendChild(item);
   });
 }
@@ -136,6 +148,20 @@ async function refreshGrabs() {
   }
 }
 
+async function refreshIndexers() {
+  try {
+    const indexers = await api("/api/indexers");
+    indexersEl.innerHTML = indexers
+      .map((indexer) => {
+        const state = indexer.enable === true ? "enabled" : "disabled";
+        return `<div>${escapeHtml(indexer.name)} · ${escapeHtml(indexer.protocol || "")} · ${state}</div>`;
+      })
+      .join("");
+  } catch (error) {
+    indexersEl.innerHTML = `<div>Indexers failed: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => {
     const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
@@ -146,3 +172,4 @@ function escapeHtml(value) {
 loadStatus();
 refreshQueue();
 refreshGrabs();
+refreshIndexers();

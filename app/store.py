@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from app.models import GrabRequest
+from app.models import GrabRequest, Release
 
 
 class Store:
@@ -32,6 +32,57 @@ class Store:
                 )
                 """
             )
+            conn.execute(
+                """
+                create table if not exists release_cache (
+                    result_id text primary key,
+                    created_at text not null default current_timestamp,
+                    query text not null,
+                    media_type text not null,
+                    title text not null,
+                    download_url text,
+                    release_json text not null
+                )
+                """
+            )
+
+    def cache_release(self, query: str, media_type: str, release: Release) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                insert into release_cache (
+                    result_id, query, media_type, title, download_url, release_json
+                )
+                values (?, ?, ?, ?, ?, ?)
+                on conflict(result_id) do update set
+                    created_at = current_timestamp,
+                    query = excluded.query,
+                    media_type = excluded.media_type,
+                    title = excluded.title,
+                    download_url = excluded.download_url,
+                    release_json = excluded.release_json
+                """,
+                (
+                    release.result_id,
+                    query,
+                    media_type,
+                    release.title,
+                    release.download_url,
+                    release.model_dump_json(),
+                ),
+            )
+
+    def get_cached_release(self, result_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                select result_id, created_at, media_type, title, download_url, release_json
+                from release_cache
+                where result_id = ?
+                """,
+                (result_id,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def record_grab(self, request: GrabRequest, response: Any) -> None:
         with self._connect() as conn:
@@ -61,4 +112,3 @@ class Store:
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
-

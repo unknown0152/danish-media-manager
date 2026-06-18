@@ -9,10 +9,15 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 
 - Search Prowlarr for movies or TV.
 - Score releases with visible Danish-audio/subtitle reasoning.
+- Treat plain `NORDiC` releases as likely Danish subtitles.
+- Parse quality fields separately from scoring: resolution, source, codec, audio.
 - Show why one release ranks above another.
+- Show accepted/rejected counts and decision warnings.
 - Send a selected release URL to AltMount through the SAB-compatible API.
 - Show AltMount queue JSON.
+- Show safe Prowlarr indexer diagnostics.
 - Store recent grabs in SQLite.
+- Cache search results server-side so browser responses do not expose Prowlarr download URLs.
 
 ## Run Locally
 
@@ -38,13 +43,19 @@ http://localhost:8080
 
 ```bash
 cp docker-compose.example.yml docker-compose.yml
-PROWLARR_API_KEY=... ALTMOUNT_API_KEY=... docker compose up -d --build
+PROWLARR_API_KEY=... ALTMOUNT_API_KEY=... docker compose up -d
 ```
 
 After a tagged release exists, the image will be published as:
 
 ```text
 ghcr.io/unknown0152/danish-media-manager:<tag>
+```
+
+For local development:
+
+```bash
+PROWLARR_API_KEY=... ALTMOUNT_API_KEY=... docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 The container expects to be on the same Docker network as `prowlarr` and

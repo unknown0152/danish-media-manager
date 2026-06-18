@@ -30,6 +30,13 @@ class ScoreBreakdown(BaseModel):
     reasons: list[str]
 
 
+class Decision(BaseModel):
+    accepted: bool
+    grab_allowed: bool
+    rejections: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class Release(BaseModel):
     result_id: str
     title: str
@@ -44,11 +51,15 @@ class Release(BaseModel):
     quality: QualityInfo
     raw: dict[str, Any] = Field(default_factory=dict, exclude=True)
     score: ScoreBreakdown
+    decision: Decision
 
 
 class SearchResponse(BaseModel):
     query: str
     media_type: MediaType
+    total: int
+    accepted: int
+    rejected: int
     releases: list[Release]
 
 
@@ -56,3 +67,13 @@ class GrabResponse(BaseModel):
     ok: bool
     message: str
     altmount_response: dict[str, Any] | str | None = None
+
+
+class IndexerStatus(BaseModel):
+    id: int | None = None
+    name: str
+    implementation: str | None = None
+    protocol: str | None = None
+    enable: bool | None = None
+    priority: int | None = None
+    tags: list[int] = Field(default_factory=list)
