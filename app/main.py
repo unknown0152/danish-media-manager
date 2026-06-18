@@ -30,17 +30,19 @@ from app.models import (
     SearchRequest,
     SearchResponse,
     SeerrSyncResult,
+    WantedRetryResult,
 )
 from app.prowlarr import ProwlarrClient
 from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.26.0")
+app = FastAPI(title="Danish Media Manager", version="0.27.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
 TV_SEASON_RE = re.compile(r"\bS\d{1,2}\b|\bSeason[ ._-]?\d{1,2}\b", re.IGNORECASE)
+WANTED_RETRY_STATUSES = {"no_results", "search_failed", "grab_failed"}
 
 
 @app.on_event("startup")
@@ -78,6 +80,19 @@ async def _seerr_sync_worker() -> None:
                 arr_client=ArrClient(settings),
                 request_store=Store(settings.database_path),
             )
+            if settings.wanted_search_enabled:
+                await asyncio.to_thread(
+                    retry_wanted_requests,
+                    limit=settings.wanted_search_max_per_cycle,
+                    auto_grab=settings.seerr_auto_grab,
+                    settings=settings,
+                    metadata_client=MetadataClient(settings),
+                    di_client=DanishIntelligenceClient(settings),
+                    prowlarr_client=ProwlarrClient(settings),
+                    altmount_client=AltMountClient(settings),
+                    arr_client=ArrClient(settings),
+                    request_store=Store(settings.database_path),
+                )
         except Exception as exc:
             print(f"[DMM] Seerr background sync failed: {exc}", flush=True)
         await asyncio.sleep(max(30, settings.seerr_sync_interval_seconds))
@@ -176,6 +191,64 @@ def create_scored_request(
     )
     if not updated:
         raise HTTPException(status_code=500, detail="Request disappeared after creation")
+    return MediaRequestResponse(
+        request=MediaRequest.model_validate(updated),
+        search=search_response,
+    )
+
+
+def rerun_stored_request_search(
+    row: dict,
+    *,
+    metadata_client: MetadataClient,
+    di_client: DanishIntelligenceClient,
+    prowlarr_client: ProwlarrClient,
+    request_store: Store,
+) -> MediaRequestResponse:
+    request_id = int(row["id"])
+    media_type = str(row["media_type"])
+    search_request = SearchRequest(
+        query=str(row["query"]),
+        media_type=media_type,  # type: ignore[arg-type]
+        min_resolution=str(row.get("min_resolution") or "any"),  # type: ignore[arg-type]
+        expected_year=row.get("metadata_year") if isinstance(row.get("metadata_year"), int) else None,
+    )
+    metadata_result = metadata_client.lookup(search_request.query, search_request.media_type)
+    if not metadata_result:
+        metadata_result = _metadata_from_row(row)
+    if metadata_result:
+        search_request = enrich_search_request(search_request, metadata_result)
+    try:
+        releases = search_releases(
+            search_request,
+            di_client=di_client,
+            prowlarr_client=prowlarr_client,
+        )
+    except Exception as exc:
+        request_store.set_media_request_status(request_id, "search_failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    search_response = build_search_response(
+        query=str(row["query"]),
+        media_type=search_request.media_type,
+        releases=releases,
+        request_store=request_store,
+        metadata_result=metadata_result,
+        request_id=request_id,
+    )
+    best = best_release(releases)
+    updated = request_store.update_media_request_search(
+        request_id,
+        status="ready" if best else "no_results",
+        best_result_id=best.result_id if best else None,
+        best_title=best.title if best else None,
+        best_score=best.score.score if best else None,
+        total=search_response.total,
+        accepted=search_response.accepted,
+        rejected=search_response.rejected,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Request not found")
     return MediaRequestResponse(
         request=MediaRequest.model_validate(updated),
         search=search_response,
@@ -404,6 +477,67 @@ def auto_grab_seerr_request(
     return response
 
 
+def retry_wanted_requests(
+    *,
+    limit: int,
+    auto_grab: bool,
+    settings: Settings,
+    metadata_client: MetadataClient,
+    di_client: DanishIntelligenceClient,
+    prowlarr_client: ProwlarrClient,
+    altmount_client: AltMountClient,
+    arr_client: ArrClient,
+    request_store: Store,
+) -> WantedRetryResult:
+    result = WantedRetryResult()
+    rows = request_store.wanted_media_requests(limit=max(1, min(limit, 50)))
+    for row in rows:
+        request_id = int(row["id"])
+        if str(row.get("status") or "") not in WANTED_RETRY_STATUSES:
+            result.skipped += 1
+            continue
+        try:
+            response = rerun_stored_request_search(
+                row,
+                metadata_client=metadata_client,
+                di_client=di_client,
+                prowlarr_client=prowlarr_client,
+                request_store=request_store,
+            )
+            result.requests.append(response.request)
+            if not response.request.best_result_id:
+                result.skipped += 1
+                continue
+            if not auto_grab:
+                result.updated += 1
+                continue
+            target = target_for_path(
+                settings,
+                response.request.media_type,
+                response.request.target_path,
+            )
+            metadata_result = response.search.metadata or _metadata_from_row(response.request.model_dump())
+            if not target or not metadata_result:
+                result.grab_failed += 1
+                result.errors.append(f"Request {request_id}: missing target or metadata")
+                continue
+            auto_grab_seerr_request(
+                row=response.request.model_dump(),
+                media_type=response.request.media_type,
+                target=target,
+                metadata_result=metadata_result,
+                settings=settings,
+                altmount_client=altmount_client,
+                arr_client=arr_client,
+                request_store=request_store,
+            )
+            result.grabbed += 1
+        except Exception as exc:
+            result.failed += 1
+            result.errors.append(f"Request {request_id}: {exc}")
+    return result
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse("app/static/index.html")
@@ -526,48 +660,37 @@ def rerun_request_search(
     row = request_store.get_media_request(request_id)
     if not row:
         raise HTTPException(status_code=404, detail="Request not found")
-    search_request = SearchRequest(
-        query=str(row["query"]),
-        media_type=row["media_type"],
-        min_resolution=str(row.get("min_resolution") or "any"),  # type: ignore[arg-type]
-        expected_year=row.get("metadata_year") if isinstance(row.get("metadata_year"), int) else None,
-    )
-    metadata_result = metadata_client.lookup(search_request.query, search_request.media_type)
-    search_request = enrich_search_request(search_request, metadata_result)
-    try:
-        releases = search_releases(
-            search_request,
-            di_client=di_client,
-            prowlarr_client=prowlarr_client,
-        )
-    except Exception as exc:
-        request_store.set_media_request_status(request_id, "search_failed")
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    search_response = build_search_response(
-        query=str(row["query"]),
-        media_type=search_request.media_type,
-        releases=releases,
+    return rerun_stored_request_search(
+        row,
+        metadata_client=metadata_client,
+        di_client=di_client,
+        prowlarr_client=prowlarr_client,
         request_store=request_store,
-        metadata_result=metadata_result,
-        request_id=request_id,
     )
-    best = best_release(releases)
-    updated = request_store.update_media_request_search(
-        request_id,
-        status="ready" if best else "no_results",
-        best_result_id=best.result_id if best else None,
-        best_title=best.title if best else None,
-        best_score=best.score.score if best else None,
-        total=search_response.total,
-        accepted=search_response.accepted,
-        rejected=search_response.rejected,
-    )
-    if not updated:
-        raise HTTPException(status_code=404, detail="Request not found")
-    return MediaRequestResponse(
-        request=MediaRequest.model_validate(updated),
-        search=search_response,
+
+
+@app.post("/api/wanted/retry", response_model=WantedRetryResult)
+def retry_wanted_now(
+    limit: int = 10,
+    auto_grab: bool | None = None,
+    settings: Settings = Depends(get_settings),
+    metadata_client: MetadataClient = Depends(metadata),
+    di_client: DanishIntelligenceClient = Depends(danish_intelligence),
+    prowlarr_client: ProwlarrClient = Depends(prowlarr),
+    altmount_client: AltMountClient = Depends(altmount),
+    arr_client: ArrClient = Depends(arr),
+    request_store: Store = Depends(store),
+) -> WantedRetryResult:
+    return retry_wanted_requests(
+        limit=limit,
+        auto_grab=settings.seerr_auto_grab if auto_grab is None else auto_grab,
+        settings=settings,
+        metadata_client=metadata_client,
+        di_client=di_client,
+        prowlarr_client=prowlarr_client,
+        altmount_client=altmount_client,
+        arr_client=arr_client,
+        request_store=request_store,
     )
 
 

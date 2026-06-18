@@ -31,6 +31,8 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Import Seerr requests into DMM so Seerr can stay the request frontend while DMM handles rich search/scoring.
 - Store a target media folder on each request.
 - Rerun a request search without losing the request history.
+- Keep missing/failed wanted requests on a bounded background retry loop.
+- Retry all wanted requests manually from the Requests panel.
 - Grab the stored best result manually when ready.
 - Send a selected release URL to AltMount through the SAB-compatible API.
 - Show normalized AltMount download status, active queue, and recent history.
@@ -46,7 +48,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 
 Seerr can remain the family/user request UI. DMM imports recent Seerr requests, resolves metadata from Seerr, runs Danish Intelligence rich search, scores releases, repairs the matching Radarr/Sonarr target path/profile, and can send the best accepted candidate to AltMount. This avoids making Seerr/Radarr/Sonarr the release decision brain.
 
-The background Seerr sync is enabled by default when `SEERR_API_KEY` is set. It runs every `SEERR_SYNC_INTERVAL_SECONDS` seconds, defaults to `60`, and auto-grabs when `SEERR_AUTO_GRAB=true`. The sync endpoint can still be called manually with `POST /api/seerr/sync`.
+The background Seerr sync is enabled by default when `SEERR_API_KEY` is set. It runs every `SEERR_SYNC_INTERVAL_SECONDS` seconds, defaults to `60`, and auto-grabs when `SEERR_AUTO_GRAB=true`. After each sync, DMM can also retry stored wanted rows with status `no_results`, `search_failed`, or `grab_failed`. That retry loop is enabled with `WANTED_SEARCH_ENABLED=true` and bounded by `WANTED_SEARCH_MAX_PER_CYCLE`, default `10`, so it does not fan out into unlimited indexer calls. The sync endpoint can still be called manually with `POST /api/seerr/sync`, and wanted retries can be called manually with `POST /api/wanted/retry`.
 
 ## Request Workflow
 
@@ -60,6 +62,7 @@ GET  /api/requests
 POST /api/requests/{id}/search
 POST /api/requests/{id}/grab-best
 POST /api/seerr/sync
+POST /api/wanted/retry
 GET  /api/downloads
 GET  /api/import-health
 GET  /api/prowlarr-diagnostics

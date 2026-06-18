@@ -3,8 +3,8 @@ from fastapi import HTTPException
 
 from app.config import Settings
 from app.decision import decide_release
-from app.main import best_release, grab_cached_result
-from app.models import Decision, GrabRequest, Release, ScoreBreakdown
+from app.main import best_release, grab_cached_result, retry_wanted_requests
+from app.models import Decision, GrabRequest, MetadataResult, Release, ScoreBreakdown
 from app.prowlarr import release_sort_key
 from app.quality import QualityInfo
 from app.quality import parse_quality
@@ -25,6 +25,29 @@ class RecordingAltMount:
     def add_uri(self, request: GrabRequest) -> dict[str, str]:
         self.requests.append(request)
         return {"status": "ok"}
+
+
+class StaticMetadata:
+    def lookup(self, query: str, media_type: str) -> MetadataResult:
+        return MetadataResult(title=query.rsplit(" ", 1)[0], year=2004, tmdb_id="123")
+
+
+class EmptySearchClient:
+    def search(self, request):
+        return []
+
+
+class StaticSearchClient:
+    def __init__(self, releases: list[Release]) -> None:
+        self.releases = releases
+
+    def search(self, request):
+        return self.releases
+
+
+class ReadyArr:
+    def ensure_media_target(self, **kwargs):
+        return True
 
 
 def test_best_release_returns_none_when_all_results_rejected() -> None:
@@ -157,6 +180,48 @@ def test_release_sort_key_prefers_accepted_then_quality() -> None:
         "Accepted 1080p",
         "Rejected 2160p",
     ]
+
+
+def test_retry_wanted_requests_searches_and_auto_grabs_best(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request(
+        "Primer 2004",
+        "movie",
+        "1080p",
+        target_path="/media/movies",
+        target_label="Movies",
+        metadata=MetadataResult(title="Primer", year=2004),
+    )
+    store.set_media_request_status(request["id"], "no_results")
+    release = _manual_release(
+        title="Primer.2004.NORDiC.1080p.BluRay.x265",
+        accepted=True,
+        score=9000,
+        resolution="1080p",
+        source="bluray",
+        size=20_000_000_000,
+    )
+    altmount = RecordingAltMount()
+
+    result = retry_wanted_requests(
+        limit=10,
+        auto_grab=True,
+        settings=Settings(MOVIE_TARGETS="Movies=/media/movies"),
+        metadata_client=StaticMetadata(),  # type: ignore[arg-type]
+        di_client=EmptySearchClient(),  # type: ignore[arg-type]
+        prowlarr_client=StaticSearchClient([release]),  # type: ignore[arg-type]
+        altmount_client=altmount,  # type: ignore[arg-type]
+        arr_client=ReadyArr(),  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    updated = store.get_media_request(request["id"])
+    assert result.grabbed == 1
+    assert updated is not None
+    assert updated["status"] == "grabbed"
+    assert updated["best_title"] == release.title
+    assert len(altmount.requests) == 1
+    assert altmount.requests[0].result_id == release.result_id
 
 
 def _release(title: str, min_resolution: str = "any") -> Release:

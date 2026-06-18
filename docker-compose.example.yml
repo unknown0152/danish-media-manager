@@ -1,6 +1,6 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.26.0
+    image: ghcr.io/unknown0152/danish-media-manager:v0.27.0
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696
@@ -12,6 +12,11 @@ services:
       SONARR_API_KEY: ${SONARR_API_KEY:-}
       SEERR_URL: http://seerr:5055
       SEERR_API_KEY: ${SEERR_API_KEY:-}
+      SEERR_SYNC_ENABLED: "true"
+      SEERR_SYNC_INTERVAL_SECONDS: "60"
+      SEERR_AUTO_GRAB: "true"
+      WANTED_SEARCH_ENABLED: "true"
+      WANTED_SEARCH_MAX_PER_CYCLE: "10"
       ALTMOUNT_URL: http://danish-intelligence:9699/altmount
       ALTMOUNT_API_KEY: ${ALTMOUNT_API_KEY:?set ALTMOUNT_API_KEY}
       ALTMOUNT_IMPORT_DIR: /mnt/altmount-import

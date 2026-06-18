@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     seerr_sync_enabled: bool = Field(default=True, alias="SEERR_SYNC_ENABLED")
     seerr_sync_interval_seconds: int = Field(default=60, alias="SEERR_SYNC_INTERVAL_SECONDS")
     seerr_auto_grab: bool = Field(default=True, alias="SEERR_AUTO_GRAB")
+    wanted_search_enabled: bool = Field(default=True, alias="WANTED_SEARCH_ENABLED")
+    wanted_search_max_per_cycle: int = Field(default=10, alias="WANTED_SEARCH_MAX_PER_CYCLE")
 
     altmount_url: str = Field(
         default="http://danish-intelligence:9699/altmount",

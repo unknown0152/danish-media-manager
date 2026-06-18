@@ -61,3 +61,18 @@ def test_store_persists_request_and_cached_release(tmp_path) -> None:
     assert updated["target_label"] == "Danish Movies"
     assert updated["metadata_title"] == "The Batman"
     assert updated["metadata_year"] == 2022
+
+
+def test_store_lists_wanted_requests_oldest_first(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    first = store.create_media_request("Older Missing", "movie")
+    grabbed = store.create_media_request("Already Grabbed", "movie")
+    second = store.create_media_request("Failed Later", "tv")
+
+    store.set_media_request_status(first["id"], "no_results")
+    store.set_media_request_status(grabbed["id"], "grabbed")
+    store.set_media_request_status(second["id"], "search_failed")
+
+    wanted = store.wanted_media_requests(limit=10)
+
+    assert [row["id"] for row in wanted] == [first["id"], second["id"]]

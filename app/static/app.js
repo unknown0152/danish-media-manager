@@ -43,6 +43,7 @@ searchForm.addEventListener("submit", async (event) => {
 });
 
 document.querySelector("#refreshQueue").addEventListener("click", refreshQueue);
+document.querySelector("#retryWanted").addEventListener("click", retryWanted);
 document.querySelector("#requestBest").addEventListener("click", async () => {
   await createRequest(queryInput.value.trim());
 });
@@ -539,26 +540,56 @@ async function refreshRequests() {
           .join(" ");
         const score =
           request.best_score === null || request.best_score === undefined ? "" : ` · ${request.best_score}`;
+        const wanted = ["no_results", "search_failed", "grab_failed"].includes(request.status)
+          ? `<span class="wanted-badge">Wanted</span>`
+          : "";
         return `
           <div class="request">
-            <div><strong>#${request.id}</strong> ${escapeHtml(request.query)}${score}</div>
+            <div><strong>#${request.id}</strong> ${escapeHtml(request.query)}${score} ${wanted}</div>
             <div class="meta">${escapeHtml(request.media_type)} · ${escapeHtml(request.status)} · ${
               request.accepted
             }/${request.total} accepted</div>
             <div class="meta">${escapeHtml(target)}${metadata ? ` · ${escapeHtml(metadata)}` : ""}</div>
             ${best}
-            <button type="button" data-request-id="${request.id}" ${
-              request.best_result_id ? "" : "disabled"
-            }>Grab best</button>
+            <div class="request-actions">
+              <button type="button" data-search-request-id="${request.id}">Search</button>
+              <button type="button" data-request-id="${request.id}" ${
+                request.best_result_id ? "" : "disabled"
+              }>Grab best</button>
+            </div>
           </div>
         `;
       })
       .join("");
+    requestsEl.querySelectorAll("button[data-search-request-id]").forEach((button) => {
+      button.addEventListener("click", () => rerunRequestSearch(button.dataset.searchRequestId));
+    });
     requestsEl.querySelectorAll("button[data-request-id]").forEach((button) => {
       button.addEventListener("click", () => grabBest(button.dataset.requestId));
     });
   } catch (error) {
     requestsEl.innerHTML = `<div>Requests failed: ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function rerunRequestSearch(requestId) {
+  try {
+    resultsEl.innerHTML = "<p>Searching stored request...</p>";
+    const data = await api(`/api/requests/${requestId}/search`, { method: "POST" });
+    state.mediaType = data.request.media_type;
+    state.releases = data.search.releases;
+    state.quality = data.search.quality || null;
+    state.metadata = data.search.metadata || null;
+    state.rejectionSummary = data.search.rejection_summary || {};
+    state.warningSummary = data.search.warning_summary || {};
+    state.currentRequest = data.request;
+    statusEl.textContent = `Request #${data.request.id} · ${data.search.total} results · ${data.search.accepted} accepted`;
+    renderMetadata();
+    renderSearchSummary(data.search.indexers || []);
+    renderResults();
+    await refreshRequests();
+  } catch (error) {
+    resultsEl.innerHTML = `<p>Stored request search failed: ${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -568,6 +599,16 @@ async function grabBest(requestId) {
     await Promise.all([refreshQueue(), refreshGrabs(), refreshRequests()]);
   } catch (error) {
     alert(`Grab best failed: ${error.message}`);
+  }
+}
+
+async function retryWanted() {
+  try {
+    const result = await api("/api/wanted/retry", { method: "POST" });
+    statusEl.textContent = `Wanted retry · ${result.grabbed} grabbed · ${result.skipped} still waiting · ${result.failed} failed`;
+    await Promise.all([refreshRequests(), refreshQueue(), refreshGrabs()]);
+  } catch (error) {
+    alert(`Retry wanted failed: ${error.message}`);
   }
 }
 

@@ -159,6 +159,16 @@ class SeerrSyncResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class WantedRetryResult(BaseModel):
+    updated: int = 0
+    skipped: int = 0
+    failed: int = 0
+    grabbed: int = 0
+    grab_failed: int = 0
+    requests: list[MediaRequest] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
 class GrabResponse(BaseModel):
     ok: bool
     message: str

@@ -254,6 +254,20 @@ class Store:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def wanted_media_requests(self, limit: int = 10) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select *
+                from media_requests
+                where status in ('no_results', 'search_failed', 'grab_failed')
+                order by updated_at asc, id asc
+                limit ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def cache_release(
         self, query: str, media_type: str, release: Release, request_id: int | None = None
     ) -> None:
