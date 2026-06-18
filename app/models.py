@@ -16,6 +16,9 @@ class SearchRequest(BaseModel):
     limit: int = Field(default=100, ge=1, le=500)
     min_resolution: MinimumResolution = "any"
     expected_year: int | None = None
+    tmdb_id: str | None = None
+    tvdb_id: str | None = None
+    imdb_id: str | None = None
 
 
 class MediaRequestCreate(BaseModel):
@@ -33,6 +36,9 @@ class MetadataResult(BaseModel):
     poster_url: str | None = None
     source: str = "local"
     external_id: str | None = None
+    tmdb_id: str | None = None
+    tvdb_id: str | None = None
+    imdb_id: str | None = None
 
 
 class MediaTarget(BaseModel):

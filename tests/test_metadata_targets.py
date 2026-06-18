@@ -41,6 +41,7 @@ def test_radarr_metadata_payload_maps_to_common_metadata() -> None:
             "releaseDate": "2022-03-04",
             "overview": "Vengeance.",
             "tmdbId": 414906,
+            "imdbId": "tt1877830",
             "images": [
                 {"coverType": "fanart", "remoteUrl": "https://example.invalid/fanart.jpg"},
                 {"coverType": "poster", "remoteUrl": "https://example.invalid/poster.jpg"},
@@ -53,6 +54,8 @@ def test_radarr_metadata_payload_maps_to_common_metadata() -> None:
     assert metadata.title == "The Batman"
     assert metadata.year == 2022
     assert metadata.external_id == "414906"
+    assert metadata.tmdb_id == "414906"
+    assert metadata.imdb_id == "tt1877830"
     assert metadata.poster_url == "https://example.invalid/poster.jpg"
 
 
@@ -62,7 +65,9 @@ def test_sonarr_metadata_payload_maps_to_common_metadata() -> None:
             "title": "The Last of Us",
             "firstAired": "2023-01-15",
             "overview": "After a global pandemic.",
+            "tmdbId": 100088,
             "tvdbId": 392256,
+            "imdbId": "tt3581920",
             "images": [{"coverType": "poster", "remoteUrl": "https://example.invalid/tv.jpg"}],
         },
         "The Last of Us",
@@ -71,7 +76,10 @@ def test_sonarr_metadata_payload_maps_to_common_metadata() -> None:
     assert metadata.source == "sonarr"
     assert metadata.title == "The Last of Us"
     assert metadata.year == 2023
-    assert metadata.external_id == "392256"
+    assert metadata.external_id == "100088"
+    assert metadata.tmdb_id == "100088"
+    assert metadata.tvdb_id == "392256"
+    assert metadata.imdb_id == "tt3581920"
     assert metadata.poster_url == "https://example.invalid/tv.jpg"
 
 

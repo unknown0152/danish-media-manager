@@ -42,12 +42,7 @@ class ProwlarrClient:
         if not self.api_key:
             raise RuntimeError("PROWLARR_API_KEY is not set")
 
-        params: dict[str, Any] = {
-            "query": request.query,
-            "type": request.media_type,
-            "limit": request.limit,
-        }
-        params["categories"] = "2000" if request.media_type == "movie" else "5000"
+        params = search_params(request)
 
         with httpx.Client(timeout=self.timeout) as client:
             resp = client.get(
@@ -62,7 +57,7 @@ class ProwlarrClient:
             raise RuntimeError(f"Unexpected Prowlarr search response: {type(data).__name__}")
 
         releases = [
-            self._release_from_item(
+            release_from_item(
                 item,
                 request.query,
                 request.min_resolution,
@@ -125,45 +120,6 @@ class ProwlarrClient:
             raise RuntimeError(f"Unexpected Prowlarr response for {path}: {type(data).__name__}")
         return [item for item in data if isinstance(item, dict)]
 
-    def _release_from_item(
-        self,
-        item: dict[str, Any],
-        query: str,
-        min_resolution: str,
-        expected_year: int | None,
-    ) -> Release:
-        title = str(item.get("title") or item.get("releaseTitle") or "<untitled>")
-        size = _int_or_none(item.get("size"))
-        download_url = _str_or_none(item.get("downloadUrl") or item.get("downloadUrlMagnet"))
-        result_id = _result_id(title, _str_or_none(item.get("guid")), download_url)
-        quality = parse_quality(title)
-        score = score_release(title, size)
-        title_match = match_title(query, title, expected_year=expected_year)
-        return Release(
-            result_id=result_id,
-            title=title,
-            indexer=str(item.get("indexer") or item.get("indexerName") or "Unknown"),
-            protocol=item.get("protocol"),
-            age=_int_or_none(item.get("age")),
-            size=size,
-            guid=_str_or_none(item.get("guid")),
-            download_url=download_url,
-            indexer_id=_int_or_none(item.get("indexerId")),
-            categories=item.get("categories") if isinstance(item.get("categories"), list) else [],
-            quality=quality,
-            title_match=title_match,
-            raw=item,
-            score=score,
-            decision=decide_release(
-                score=score,
-                quality=quality,
-                title_match=title_match,
-                size=size,
-                download_url=download_url,
-                min_resolution=min_resolution,
-            ),
-        )
-
 
 def _int_or_none(value: Any) -> int | None:
     try:
@@ -177,6 +133,54 @@ def _str_or_none(value: Any) -> str | None:
         return None
     text = str(value)
     return text or None
+
+
+def release_from_item(
+    item: dict[str, Any],
+    query: str,
+    min_resolution: str,
+    expected_year: int | None,
+) -> Release:
+    title = str(item.get("title") or item.get("releaseTitle") or "<untitled>")
+    size = _int_or_none(item.get("size"))
+    download_url = _str_or_none(item.get("downloadUrl") or item.get("downloadUrlMagnet"))
+    result_id = _result_id(title, _str_or_none(item.get("guid")), download_url)
+    quality = parse_quality(title)
+    score = score_release(title, size)
+    title_match = match_title(query, title, expected_year=expected_year)
+    return Release(
+        result_id=result_id,
+        title=title,
+        indexer=str(item.get("indexer") or item.get("indexerName") or "Unknown"),
+        protocol=item.get("protocol"),
+        age=_int_or_none(item.get("age")),
+        size=size,
+        guid=_str_or_none(item.get("guid")),
+        download_url=download_url,
+        indexer_id=_int_or_none(item.get("indexerId")),
+        categories=item.get("categories") if isinstance(item.get("categories"), list) else [],
+        quality=quality,
+        title_match=title_match,
+        raw=item,
+        score=score,
+        decision=decide_release(
+            score=score,
+            quality=quality,
+            title_match=title_match,
+            size=size,
+            download_url=download_url,
+            min_resolution=min_resolution,
+        ),
+    )
+
+
+def search_params(request: SearchRequest) -> dict[str, Any]:
+    return {
+        "query": request.query,
+        "type": request.media_type,
+        "limit": request.limit,
+        "categories": "2000" if request.media_type == "movie" else "5000",
+    }
 
 
 RESOLUTION_RANK = {

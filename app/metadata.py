@@ -154,30 +154,40 @@ class MetadataClient:
             overview=_str_or_none(item.get("overview")),
             poster_url=poster_url,
             source="tmdb",
-            external_id=str(item.get("id")) if item.get("id") is not None else None,
+            external_id=_str_or_none(item.get("id")),
+            tmdb_id=_str_or_none(item.get("id")),
         )
 
 
 def metadata_from_radarr_item(item: dict[str, Any], query: str) -> MetadataResult:
+    tmdb_id = _str_or_none(item.get("tmdbId"))
+    imdb_id = _str_or_none(item.get("imdbId"))
     return MetadataResult(
         title=str(item.get("title") or fallback_title(query)),
         year=parse_year(str(item.get("releaseDate") or "")) or parse_year(query),
         overview=_str_or_none(item.get("overview")),
         poster_url=_poster_from_arr_images(item.get("images")) or _str_or_none(item.get("remotePoster")),
         source="radarr",
-        external_id=str(item.get("tmdbId")) if item.get("tmdbId") is not None else None,
+        external_id=tmdb_id,
+        tmdb_id=tmdb_id,
+        imdb_id=imdb_id,
     )
 
 
 def metadata_from_sonarr_item(item: dict[str, Any], query: str) -> MetadataResult:
-    external_id = item.get("tmdbId") if item.get("tmdbId") is not None else item.get("tvdbId")
+    tmdb_id = _str_or_none(item.get("tmdbId"))
+    tvdb_id = _str_or_none(item.get("tvdbId"))
+    imdb_id = _str_or_none(item.get("imdbId"))
     return MetadataResult(
         title=str(item.get("title") or fallback_title(query)),
         year=parse_year(str(item.get("firstAired") or "")) or parse_year(query),
         overview=_str_or_none(item.get("overview")),
         poster_url=_poster_from_arr_images(item.get("images")) or _str_or_none(item.get("remotePoster")),
         source="sonarr",
-        external_id=str(external_id) if external_id is not None else None,
+        external_id=tmdb_id or tvdb_id,
+        tmdb_id=tmdb_id,
+        tvdb_id=tvdb_id,
+        imdb_id=imdb_id,
     )
 
 
@@ -195,7 +205,10 @@ def metadata_from_seerr_item(item: dict[str, Any], query: str) -> MetadataResult
         overview=_str_or_none(item.get("overview")),
         poster_url=poster_url,
         source="seerr",
-        external_id=str(item.get("id")) if item.get("id") is not None else None,
+        external_id=_str_or_none(item.get("id")),
+        tmdb_id=_str_or_none(item.get("id")) if media_type == "movie" else None,
+        tvdb_id=_str_or_none(item.get("tvdbId")),
+        imdb_id=_str_or_none(item.get("imdbId")),
     )
 
 

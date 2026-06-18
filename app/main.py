@@ -2,6 +2,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.arr import ArrClient
 from app.altmount import AltMountClient
 from app.config import Settings, get_settings
 from app.import_health import check_import_health
@@ -28,7 +29,7 @@ from app.store import Store
 from app.targets import all_targets, target_for_path
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.18.0")
+app = FastAPI(title="Danish Media Manager", version="0.20.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -37,6 +38,10 @@ def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
 
 def altmount(settings: Settings = Depends(get_settings)) -> AltMountClient:
     return AltMountClient(settings)
+
+
+def arr(settings: Settings = Depends(get_settings)) -> ArrClient:
+    return ArrClient(settings)
 
 
 def store(settings: Settings = Depends(get_settings)) -> Store:
@@ -144,6 +149,33 @@ def best_release(releases: list[Release]) -> Release | None:
     return None
 
 
+def enrich_search_request(request: SearchRequest, metadata_result: MetadataResult) -> SearchRequest:
+    search_query = metadata_result.title or request.query
+    if metadata_result.year and str(metadata_result.year) not in search_query:
+        search_query = f"{search_query} {metadata_result.year}"
+    return request.model_copy(
+        update={
+            "query": search_query,
+            "expected_year": metadata_result.year or request.expected_year,
+            "tmdb_id": metadata_result.tmdb_id,
+            "tvdb_id": metadata_result.tvdb_id,
+            "imdb_id": metadata_result.imdb_id,
+        }
+    )
+
+
+def search_releases(
+    request: SearchRequest,
+    *,
+    arr_client: ArrClient,
+    prowlarr_client: ProwlarrClient,
+) -> list[Release]:
+    releases = arr_client.interactive_search(request)
+    if releases:
+        return releases
+    return prowlarr_client.search(request)
+
+
 def grab_cached_result(
     request: GrabRequest,
     *,
@@ -205,13 +237,18 @@ def status(
 def search(
     request: SearchRequest,
     metadata_client: MetadataClient = Depends(metadata),
+    arr_client: ArrClient = Depends(arr),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> SearchResponse:
     metadata_result = metadata_client.lookup(request.query, request.media_type)
-    request.expected_year = metadata_result.year or request.expected_year
+    search_request = enrich_search_request(request, metadata_result)
     try:
-        releases = prowlarr_client.search(request)
+        releases = search_releases(
+            search_request,
+            arr_client=arr_client,
+            prowlarr_client=prowlarr_client,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return build_search_response(
@@ -228,6 +265,7 @@ def create_request(
     request: MediaRequestCreate,
     settings: Settings = Depends(get_settings),
     metadata_client: MetadataClient = Depends(metadata),
+    arr_client: ArrClient = Depends(arr),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
@@ -247,10 +285,14 @@ def create_request(
         media_type=request.media_type,
         limit=request.limit,
         min_resolution=request.min_resolution,
-        expected_year=metadata_result.year,
     )
+    search_request = enrich_search_request(search_request, metadata_result)
     try:
-        releases = prowlarr_client.search(search_request)
+        releases = search_releases(
+            search_request,
+            arr_client=arr_client,
+            prowlarr_client=prowlarr_client,
+        )
     except Exception as exc:
         request_store.set_media_request_status(request_id, "search_failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -325,6 +367,8 @@ def request_detail(request_id: int, request_store: Store = Depends(store)) -> Me
 @app.post("/api/requests/{request_id}/search", response_model=MediaRequestResponse)
 def rerun_request_search(
     request_id: int,
+    metadata_client: MetadataClient = Depends(metadata),
+    arr_client: ArrClient = Depends(arr),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
@@ -337,18 +381,24 @@ def rerun_request_search(
         min_resolution=str(row.get("min_resolution") or "any"),  # type: ignore[arg-type]
         expected_year=row.get("metadata_year") if isinstance(row.get("metadata_year"), int) else None,
     )
+    metadata_result = metadata_client.lookup(search_request.query, search_request.media_type)
+    search_request = enrich_search_request(search_request, metadata_result)
     try:
-        releases = prowlarr_client.search(search_request)
+        releases = search_releases(
+            search_request,
+            arr_client=arr_client,
+            prowlarr_client=prowlarr_client,
+        )
     except Exception as exc:
         request_store.set_media_request_status(request_id, "search_failed")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     search_response = build_search_response(
-        query=search_request.query,
+        query=str(row["query"]),
         media_type=search_request.media_type,
         releases=releases,
         request_store=request_store,
-        metadata_result=_metadata_from_row(row),
+        metadata_result=metadata_result,
         request_id=request_id,
     )
     best = best_release(releases)

@@ -8,7 +8,9 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 ## Current MVP
 
 - Search Prowlarr for movies or TV.
+- Prefer Radarr/Sonarr interactive search for existing library items, then fall back to direct Prowlarr search.
 - Look up lightweight metadata for exact year matching; use Seerr, Radarr, Sonarr, or TMDB for posters/overview when configured.
+- Pass TMDB/TVDB/IMDB identifiers and full movie/TV subcategories into Prowlarr when metadata is available.
 - Score releases with visible Danish-audio/subtitle reasoning.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
