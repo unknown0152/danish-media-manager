@@ -3,6 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.quality import QualityInfo
+from app.titlematch import TitleMatch
 
 
 MediaType = Literal["movie", "tv"]
@@ -70,6 +71,7 @@ class Release(BaseModel):
     indexer_id: int | None = None
     categories: list[Any] = Field(default_factory=list)
     quality: QualityInfo
+    title_match: TitleMatch | None = None
     raw: dict[str, Any] = Field(default_factory=dict, exclude=True)
     score: ScoreBreakdown
     decision: Decision

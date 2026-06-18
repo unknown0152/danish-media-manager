@@ -113,6 +113,14 @@ function renderResults() {
       .join(" · ");
     const decision = release.decision || { grab_allowed: false, rejections: [], warnings: [] };
     const notes = [...(decision.rejections || []), ...(decision.warnings || [])];
+    const year =
+      release.title_match?.release_year === null || release.title_match?.release_year === undefined
+        ? "unknown year"
+        : release.title_match.release_year;
+    const overlap =
+      release.title_match?.token_overlap === null || release.title_match?.token_overlap === undefined
+        ? "unknown match"
+        : `${Math.round(release.title_match.token_overlap * 100)}% title match`;
     item.innerHTML = `
       <div class="score ${release.score.verdict}">
         <span>${release.score.score}</span>
@@ -126,6 +134,7 @@ function renderResults() {
         <div class="title">${escapeHtml(release.title)}</div>
         <div class="meta">${escapeHtml(release.indexer)} · ${size}</div>
         <div class="meta">${escapeHtml(quality)}</div>
+        <div class="meta">${escapeHtml(year)} · ${escapeHtml(overlap)}</div>
         <div class="reasons">${release.score.reasons.map(escapeHtml).join(" · ")}</div>
         ${
           notes.length

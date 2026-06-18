@@ -2,6 +2,7 @@ from app.scoring import score_release
 from app.decision import decide_release
 from app.models import Release
 from app.quality import parse_quality
+from app.titlematch import match_title
 
 
 def test_danish_audio_beats_plain_2160p() -> None:
@@ -71,6 +72,7 @@ def test_release_serialization_hides_sensitive_url_and_raw() -> None:
         decision=decide_release(
             score=score,
             quality=quality,
+            title_match=match_title("Example", "Example.DKSUBS"),
             size=5_000_000_000,
             download_url="http://prowlarr/download?apikey=secret",
         ),
@@ -89,9 +91,25 @@ def test_bad_source_is_not_grabbable() -> None:
     decision = decide_release(
         score=score,
         quality=quality,
+        title_match=match_title("Movie 2026", "Movie.2026.CAM.1080p.DKSUBS"),
         size=5_000_000_000,
         download_url="http://example.invalid/file.nzb",
     )
 
     assert not decision.grab_allowed
     assert "Rejected bad source quality" in decision.rejections
+
+
+def test_wrong_year_is_rejected() -> None:
+    quality = parse_quality("The.Batman.2021.NORDiC.2160p.BluRay.x265")
+    score = score_release("The.Batman.2021.NORDiC.2160p.BluRay.x265", 20_000_000_000)
+    decision = decide_release(
+        score=score,
+        quality=quality,
+        title_match=match_title("The Batman 2022", "The.Batman.2021.NORDiC.2160p.BluRay.x265"),
+        size=20_000_000_000,
+        download_url="http://example.invalid/file.nzb",
+    )
+
+    assert not decision.grab_allowed
+    assert any(reason.startswith("Wrong year") for reason in decision.rejections)

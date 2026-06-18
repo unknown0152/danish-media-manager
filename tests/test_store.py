@@ -3,22 +3,25 @@ from app.models import Release
 from app.quality import parse_quality
 from app.scoring import score_release
 from app.store import Store
+from app.titlematch import match_title
 
 
 def test_store_persists_request_and_cached_release(tmp_path) -> None:
     store = Store(str(tmp_path / "test.db"))
     request = store.create_media_request("The Batman 2022", "movie")
-    quality = parse_quality("The.Batman.2022.NORDiC.2160p.BluRay.x265")
-    score = score_release("The.Batman.2022.NORDiC.2160p.BluRay.x265", 20_000_000_000)
+    title = "The.Batman.2022.NORDiC.2160p.BluRay.x265"
+    quality = parse_quality(title)
+    score = score_release(title, 20_000_000_000)
     release = Release(
         result_id="abc123",
-        title="The.Batman.2022.NORDiC.2160p.BluRay.x265",
+        title=title,
         download_url="http://prowlarr/1/download?apikey=secret",
         quality=quality,
         score=score,
         decision=decide_release(
             score=score,
             quality=quality,
+            title_match=match_title("The Batman 2022", title),
             size=20_000_000_000,
             download_url="http://prowlarr/1/download?apikey=secret",
         ),

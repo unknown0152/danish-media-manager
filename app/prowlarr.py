@@ -8,6 +8,7 @@ from app.decision import decide_release
 from app.models import IndexerStatus, Release, SearchRequest
 from app.quality import parse_quality
 from app.scoring import score_release
+from app.titlematch import match_title
 
 
 class ProwlarrClient:
@@ -52,7 +53,9 @@ class ProwlarrClient:
         if not isinstance(data, list):
             raise RuntimeError(f"Unexpected Prowlarr search response: {type(data).__name__}")
 
-        releases = [self._release_from_item(item) for item in data if isinstance(item, dict)]
+        releases = [
+            self._release_from_item(item, request.query) for item in data if isinstance(item, dict)
+        ]
         releases.sort(key=lambda release: release.score.score, reverse=True)
         return releases
 
@@ -85,13 +88,14 @@ class ProwlarrClient:
             if isinstance(item, dict)
         ]
 
-    def _release_from_item(self, item: dict[str, Any]) -> Release:
+    def _release_from_item(self, item: dict[str, Any], query: str) -> Release:
         title = str(item.get("title") or item.get("releaseTitle") or "<untitled>")
         size = _int_or_none(item.get("size"))
         download_url = _str_or_none(item.get("downloadUrl") or item.get("downloadUrlMagnet"))
         result_id = _result_id(title, _str_or_none(item.get("guid")), download_url)
         quality = parse_quality(title)
         score = score_release(title, size)
+        title_match = match_title(query, title)
         return Release(
             result_id=result_id,
             title=title,
@@ -104,11 +108,13 @@ class ProwlarrClient:
             indexer_id=_int_or_none(item.get("indexerId")),
             categories=item.get("categories") if isinstance(item.get("categories"), list) else [],
             quality=quality,
+            title_match=title_match,
             raw=item,
             score=score,
             decision=decide_release(
                 score=score,
                 quality=quality,
+                title_match=title_match,
                 size=size,
                 download_url=download_url,
             ),

@@ -11,6 +11,8 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Score releases with visible Danish-audio/subtitle reasoning.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
+- Parse HDR details including DV and HDR10+.
+- Parse title/year matching and reject wrong-year releases.
 - Show why one release ranks above another.
 - Show accepted/rejected counts and decision warnings.
 - Create persistent requests and store the current best release.

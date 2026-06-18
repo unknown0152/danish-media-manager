@@ -1,11 +1,13 @@
 from app.models import Decision, ScoreBreakdown
 from app.quality import QualityInfo
+from app.titlematch import TitleMatch
 
 
 def decide_release(
     *,
     score: ScoreBreakdown,
     quality: QualityInfo,
+    title_match: TitleMatch | None = None,
     size: int | None,
     download_url: str | None,
 ) -> Decision:
@@ -17,6 +19,14 @@ def decide_release(
 
     if quality.is_bad_source:
         rejections.append("Rejected bad source quality")
+
+    if title_match:
+        if title_match.year_matches is False:
+            rejections.append(
+                f"Wrong year: wanted {title_match.query_year}, release is {title_match.release_year}"
+            )
+        if title_match.token_overlap < 0.6:
+            warnings.append("Weak title match")
 
     if quality.is_low_value_encode:
         warnings.append("Low value encode")
@@ -46,4 +56,3 @@ def decide_release(
         rejections=rejections,
         warnings=warnings,
     )
-
