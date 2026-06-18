@@ -24,7 +24,7 @@ from app.prowlarr import ProwlarrClient
 from app.store import Store
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.12.0")
+app = FastAPI(title="Danish Media Manager", version="0.13.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
@@ -139,8 +139,9 @@ def grab_cached_result(
     *,
     altmount_client: AltMountClient,
     request_store: Store,
+    settings: Settings,
 ) -> GrabResponse:
-    if request.result_id and not request.download_url:
+    if request.result_id:
         cached = request_store.get_cached_release(request.result_id)
         if not cached:
             raise HTTPException(status_code=404, detail="Search result expired; search again")
@@ -157,6 +158,11 @@ def grab_cached_result(
         )
         request.title = str(cached.get("title") or request.title)
         request.media_type = str(cached.get("media_type") or request.media_type)  # type: ignore[assignment]
+    elif request.download_url and not settings.allow_direct_download_urls:
+        raise HTTPException(
+            status_code=403,
+            detail="Direct download URLs are disabled; grab a cached search result instead",
+        )
     try:
         response = altmount_client.add_uri(request)
         request_store.record_grab(request, response)
@@ -268,6 +274,7 @@ def release_detail(result_id: str, request_store: Store = Depends(store)) -> dic
 @app.post("/api/grab", response_model=GrabResponse)
 def grab(
     request: GrabRequest,
+    settings: Settings = Depends(get_settings),
     altmount_client: AltMountClient = Depends(altmount),
     request_store: Store = Depends(store),
 ) -> GrabResponse:
@@ -275,6 +282,7 @@ def grab(
         request,
         altmount_client=altmount_client,
         request_store=request_store,
+        settings=settings,
     )
 
 
@@ -340,6 +348,7 @@ def rerun_request_search(
 @app.post("/api/requests/{request_id}/grab-best", response_model=GrabResponse)
 def grab_best_for_request(
     request_id: int,
+    settings: Settings = Depends(get_settings),
     altmount_client: AltMountClient = Depends(altmount),
     request_store: Store = Depends(store),
 ) -> GrabResponse:
@@ -357,6 +366,7 @@ def grab_best_for_request(
         ),
         altmount_client=altmount_client,
         request_store=request_store,
+        settings=settings,
     )
     request_store.set_media_request_status(request_id, "grabbed")
     return response

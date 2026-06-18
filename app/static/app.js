@@ -6,6 +6,7 @@ const state = {
   rejectionSummary: {},
   warningSummary: {},
   currentRequest: null,
+  acceptedOnly: false,
 };
 
 const statusEl = document.querySelector("#status");
@@ -20,6 +21,7 @@ const requestsEl = document.querySelector("#requests");
 const searchForm = document.querySelector("#searchForm");
 const queryInput = document.querySelector("#query");
 const minResolutionInput = document.querySelector("#minResolution");
+const acceptedOnlyInput = document.querySelector("#acceptedOnly");
 
 document.querySelectorAll(".segmented button").forEach((button) => {
   button.addEventListener("click", () => {
@@ -40,6 +42,10 @@ document.querySelector("#requestBest").addEventListener("click", async () => {
 });
 minResolutionInput.addEventListener("change", () => {
   state.minResolution = minResolutionInput.value;
+});
+acceptedOnlyInput.addEventListener("change", () => {
+  state.acceptedOnly = acceptedOnlyInput.checked;
+  renderResults();
 });
 
 async function api(path, options = {}) {
@@ -186,8 +192,15 @@ function renderResults() {
     resultsEl.innerHTML = "<p>No results.</p>";
     return;
   }
+  const visibleReleases = state.acceptedOnly
+    ? state.releases.filter((release) => release.decision?.grab_allowed === true)
+    : state.releases;
+  if (!visibleReleases.length) {
+    resultsEl.innerHTML = "<p>No accepted results for the current filters.</p>";
+    return;
+  }
   resultsEl.innerHTML = "";
-  state.releases.forEach((release) => {
+  visibleReleases.forEach((release) => {
     const item = document.createElement("article");
     item.className = "release";
     if (state.currentRequest?.best_result_id === release.result_id) {

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     media_root: str = Field(default="/media", alias="MEDIA_ROOT")
 
     request_timeout_seconds: float = Field(default=20.0, alias="REQUEST_TIMEOUT_SECONDS")
+    allow_direct_download_urls: bool = Field(default=False, alias="ALLOW_DIRECT_DOWNLOAD_URLS")
 
 
 @lru_cache

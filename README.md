@@ -19,6 +19,8 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Enforce optional minimum quality per search/request: any, 720p+, 1080p+, or 2160p only.
 - Summarize rejection and warning reasons for each search.
 - Block rejected cached releases from being sent to AltMount, even through direct API calls.
+- Block raw direct download URLs by default; normal grabs must come from cached search results.
+- Filter the result list to accepted releases only.
 - Create persistent requests and store the current best release.
 - Rerun a request search without losing the request history.
 - Grab the stored best result manually when ready.
@@ -102,6 +104,7 @@ The container expects to be on the same Docker network as `prowlarr` and
 | `ALTMOUNT_MOUNT_PATH` | `/mnt/altmount` | Read-only AltMount FUSE path expected as symlink target |
 | `MEDIA_ROOT` | `/media` | Read-only media root visibility check |
 | `DATABASE_PATH` | `/data/danish-media-manager.db` | SQLite history DB |
+| `ALLOW_DIRECT_DOWNLOAD_URLS` | `false` | Set to `true` only for manual debugging of raw NZB URLs |
 
 ## Roadmap
 
