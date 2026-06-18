@@ -1,10 +1,11 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.20.0
+    image: ghcr.io/unknown0152/danish-media-manager:v0.21.0
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:?set PROWLARR_API_KEY}
+      DANISH_INTELLIGENCE_URL: http://danish-intelligence:9699
       RADARR_URL: http://radarr:7878
       RADARR_API_KEY: ${RADARR_API_KEY:-}
       SONARR_URL: http://sonarr:8989

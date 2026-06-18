@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     prowlarr_url: str = Field(default="http://prowlarr:9696", alias="PROWLARR_URL")
     prowlarr_api_key: str = Field(default="", alias="PROWLARR_API_KEY")
+    danish_intelligence_url: str = Field(
+        default="http://danish-intelligence:9699",
+        alias="DANISH_INTELLIGENCE_URL",
+    )
     radarr_url: str = Field(default="http://radarr:7878", alias="RADARR_URL")
     radarr_api_key: str = Field(default="", alias="RADARR_API_KEY")
     sonarr_url: str = Field(default="http://sonarr:8989", alias="SONARR_URL")

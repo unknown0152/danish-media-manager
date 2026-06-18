@@ -2,9 +2,9 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.arr import ArrClient
 from app.altmount import AltMountClient
 from app.config import Settings, get_settings
+from app.danish_intelligence import DanishIntelligenceClient
 from app.import_health import check_import_health
 from app.metadata import MetadataClient
 from app.models import (
@@ -29,19 +29,19 @@ from app.store import Store
 from app.targets import all_targets, target_for_path
 import json
 
-app = FastAPI(title="Danish Media Manager", version="0.20.0")
+app = FastAPI(title="Danish Media Manager", version="0.21.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
     return ProwlarrClient(settings)
 
 
+def danish_intelligence(settings: Settings = Depends(get_settings)) -> DanishIntelligenceClient:
+    return DanishIntelligenceClient(settings)
+
+
 def altmount(settings: Settings = Depends(get_settings)) -> AltMountClient:
     return AltMountClient(settings)
-
-
-def arr(settings: Settings = Depends(get_settings)) -> ArrClient:
-    return ArrClient(settings)
 
 
 def store(settings: Settings = Depends(get_settings)) -> Store:
@@ -167,10 +167,13 @@ def enrich_search_request(request: SearchRequest, metadata_result: MetadataResul
 def search_releases(
     request: SearchRequest,
     *,
-    arr_client: ArrClient,
+    di_client: DanishIntelligenceClient,
     prowlarr_client: ProwlarrClient,
 ) -> list[Release]:
-    releases = arr_client.interactive_search(request)
+    try:
+        releases = di_client.search(request)
+    except Exception:
+        releases = []
     if releases:
         return releases
     return prowlarr_client.search(request)
@@ -237,7 +240,7 @@ def status(
 def search(
     request: SearchRequest,
     metadata_client: MetadataClient = Depends(metadata),
-    arr_client: ArrClient = Depends(arr),
+    di_client: DanishIntelligenceClient = Depends(danish_intelligence),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> SearchResponse:
@@ -246,7 +249,7 @@ def search(
     try:
         releases = search_releases(
             search_request,
-            arr_client=arr_client,
+            di_client=di_client,
             prowlarr_client=prowlarr_client,
         )
     except Exception as exc:
@@ -265,7 +268,7 @@ def create_request(
     request: MediaRequestCreate,
     settings: Settings = Depends(get_settings),
     metadata_client: MetadataClient = Depends(metadata),
-    arr_client: ArrClient = Depends(arr),
+    di_client: DanishIntelligenceClient = Depends(danish_intelligence),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
@@ -290,7 +293,7 @@ def create_request(
     try:
         releases = search_releases(
             search_request,
-            arr_client=arr_client,
+            di_client=di_client,
             prowlarr_client=prowlarr_client,
         )
     except Exception as exc:
@@ -368,7 +371,7 @@ def request_detail(request_id: int, request_store: Store = Depends(store)) -> Me
 def rerun_request_search(
     request_id: int,
     metadata_client: MetadataClient = Depends(metadata),
-    arr_client: ArrClient = Depends(arr),
+    di_client: DanishIntelligenceClient = Depends(danish_intelligence),
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
     request_store: Store = Depends(store),
 ) -> MediaRequestResponse:
@@ -386,7 +389,7 @@ def rerun_request_search(
     try:
         releases = search_releases(
             search_request,
-            arr_client=arr_client,
+            di_client=di_client,
             prowlarr_client=prowlarr_client,
         )
     except Exception as exc:

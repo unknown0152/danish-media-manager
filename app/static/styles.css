@@ -332,6 +332,26 @@ select {
   font-size: 13px;
 }
 
+.indexer-attrs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 12px;
+}
+
+.indexer-attrs span {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--muted);
+  padding: 3px 6px;
+}
+
+.indexer-attrs strong {
+  color: var(--text);
+}
+
 .decision {
   margin-top: 6px;
   color: var(--warn);

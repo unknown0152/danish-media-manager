@@ -275,6 +275,22 @@ function renderReasonSummary(label, values) {
   `;
 }
 
+function renderIndexerAttrs(release) {
+  const attrs = release.indexer_attrs || {};
+  const preferred = ["files", "grabs", "genre", "category", "comments"];
+  const chips = preferred
+    .filter((name) => attrs[name] && attrs[name].length)
+    .slice(0, 5)
+    .map((name) => {
+      const value = attrs[name].slice(0, 3).join(", ");
+      return `<span><strong>${escapeHtml(name)}</strong> ${escapeHtml(value)}</span>`;
+    });
+  if (!chips.length) {
+    return "";
+  }
+  return `<div class="indexer-attrs">${chips.join("")}</div>`;
+}
+
 function renderResults() {
   if (!state.releases.length) {
     resultsEl.innerHTML = "<p>No results.</p>";
@@ -328,6 +344,7 @@ function renderResults() {
         <div class="meta">${escapeHtml(release.indexer)} · ${size}</div>
         <div class="meta">${escapeHtml(quality)}</div>
         <div class="meta">${escapeHtml(year)} · ${escapeHtml(overlap)}</div>
+        ${renderIndexerAttrs(release)}
         <div class="reasons">${release.score.reasons.map(escapeHtml).join(" · ")}</div>
         ${
           notes.length

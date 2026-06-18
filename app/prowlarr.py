@@ -159,6 +159,7 @@ def release_from_item(
         download_url=download_url,
         indexer_id=_int_or_none(item.get("indexerId")),
         categories=item.get("categories") if isinstance(item.get("categories"), list) else [],
+        indexer_attrs=_attrs_from_item(item),
         quality=quality,
         title_match=title_match,
         raw=item,
@@ -172,6 +173,20 @@ def release_from_item(
             min_resolution=min_resolution,
         ),
     )
+
+
+def _attrs_from_item(item: dict[str, Any]) -> dict[str, list[Any]]:
+    attrs = item.get("attrs") or item.get("attributes")
+    if not isinstance(attrs, dict):
+        return {}
+    normalized: dict[str, list[Any]] = {}
+    for key, value in attrs.items():
+        name = str(key)
+        if isinstance(value, list):
+            normalized[name] = value
+        elif value is not None:
+            normalized[name] = [value]
+    return normalized
 
 
 def search_params(request: SearchRequest) -> dict[str, Any]:

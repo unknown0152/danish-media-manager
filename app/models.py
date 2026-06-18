@@ -102,6 +102,7 @@ class Release(BaseModel):
     download_url: str | None = Field(default=None, exclude=True)
     indexer_id: int | None = None
     categories: list[Any] = Field(default_factory=list)
+    indexer_attrs: dict[str, list[Any]] = Field(default_factory=dict)
     quality: QualityInfo
     title_match: TitleMatch | None = None
     raw: dict[str, Any] = Field(default_factory=dict, exclude=True)

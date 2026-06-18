@@ -8,9 +8,8 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 ## Current MVP
 
 - Search Prowlarr for movies or TV.
-- Prefer Radarr/Sonarr interactive search for existing library items, then fall back to direct Prowlarr search.
 - Look up lightweight metadata for exact year matching; use Seerr, Radarr, Sonarr, or TMDB for posters/overview when configured.
-- Pass TMDB/TVDB/IMDB identifiers and full movie/TV subcategories into Prowlarr when metadata is available.
+- Use Radarr/Sonarr metadata IDs to improve matching, while keeping Danish Intelligence/Prowlarr as the primary release-search path.
 - Score releases with visible Danish-audio/subtitle reasoning.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
@@ -107,6 +106,7 @@ The container expects to be on the same Docker network as `prowlarr` and
 | --- | --- | --- |
 | `PROWLARR_URL` | `http://prowlarr:9696` | Prowlarr API base URL |
 | `PROWLARR_API_KEY` | empty | Prowlarr API key |
+| `DANISH_INTELLIGENCE_URL` | `http://danish-intelligence:9699` | Native rich search API base URL |
 | `RADARR_URL` | `http://radarr:7878` | Optional Radarr API base URL for movie metadata lookup |
 | `RADARR_API_KEY` | empty | Optional Radarr API key |
 | `SONARR_URL` | `http://sonarr:8989` | Optional Sonarr API base URL for TV metadata lookup |
