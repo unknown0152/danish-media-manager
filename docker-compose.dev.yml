@@ -15,12 +15,15 @@ services:
       SEERR_API_KEY: ${SEERR_API_KEY:-}
       DATABASE_PATH: /data/danish-media-manager.db
       SEERR_AUTO_GRAB: "true"
+      SEERR_ACTIVE_SEARCH_ON_IMPORT: "false"
       RECENT_FEED_SYNC_ENABLED: "true"
       RECENT_FEED_LIMIT: "500"
-      WANTED_SEARCH_ENABLED: "true"
-      WANTED_SEARCH_MAX_PER_CYCLE: "10"
+      WANTED_SEARCH_ENABLED: "false"
+      WANTED_SEARCH_MAX_PER_CYCLE: "2"
     volumes:
       - ./data:/data
+      - /mnt:/mnt:ro,rshared
+      - /media:/media:ro
     networks:
       - media-stack
     ports:

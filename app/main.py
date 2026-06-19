@@ -41,7 +41,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.36.1")
+app = FastAPI(title="Danish Media Manager", version="0.37.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -250,6 +250,51 @@ def create_scored_request(
     return MediaRequestResponse(
         request=MediaRequest.model_validate(updated),
         search=search_response,
+    )
+
+
+def create_unsearched_request_response(
+    *,
+    query: str,
+    media_type: str,
+    min_resolution: str,
+    target: MediaTarget,
+    metadata_result: MetadataResult,
+    request_store: Store,
+    external_source: str | None = None,
+    external_id: str | None = None,
+    origin_source: str | None = None,
+    origin_details: str | None = None,
+    tv_season: int | None = None,
+    tv_episode: int | None = None,
+) -> MediaRequestResponse:
+    row = request_store.create_media_request(
+        query,
+        media_type,
+        min_resolution,
+        target_path=target.path,
+        target_label=target.label,
+        metadata=metadata_result,
+        external_source=external_source,
+        external_id=external_id,
+        origin_source=origin_source,
+        origin_details=origin_details,
+        tv_season=tv_season,
+        tv_episode=tv_episode,
+    )
+    updated = request_store.set_media_request_status(int(row["id"]), "no_results")
+    row = updated or row
+    return MediaRequestResponse(
+        request=MediaRequest.model_validate(row),
+        search=SearchResponse(
+            query=query,
+            media_type=media_type,  # type: ignore[arg-type]
+            metadata=metadata_result,
+            total=0,
+            accepted=0,
+            rejected=0,
+            releases=[],
+        ),
     )
 
 
@@ -467,10 +512,12 @@ def grab_cached_result(
     settings: Settings,
 ) -> GrabResponse:
     monitored_item_id: int | None = None
+    request_id_for_grab: int | None = None
     if request.result_id:
         cached = request_store.get_cached_release(request.result_id)
         if not cached:
             raise HTTPException(status_code=404, detail="Search result expired; search again")
+        request_id_for_grab = _int_or_none(cached.get("request_id"))
         release_payload = json.loads(str(cached["release_json"]))
         decision = release_payload.get("decision") if isinstance(release_payload, dict) else {}
         if isinstance(decision, dict) and decision.get("grab_allowed") is False:
@@ -492,7 +539,12 @@ def grab_cached_result(
         )
     try:
         response = altmount_client.add_uri(request)
-        request_store.record_grab(request, response, monitored_item_id=monitored_item_id)
+        request_store.record_grab(
+            request,
+            response,
+            request_id=request_id_for_grab,
+            monitored_item_id=monitored_item_id,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return GrabResponse(ok=True, message="Sent to AltMount", altmount_response=response)
@@ -1242,23 +1294,39 @@ def sync_seerr_requests(
             query = metadata_result.title
             if metadata_result.year:
                 query = f"{query} {metadata_result.year}"
-            response = create_scored_request(
-                query=query,
-                media_type=media_type,
-                min_resolution="1080p",
-                limit=100,
-                target_path=target.path,
-                settings=settings,
-                metadata_result=metadata_result,
-                di_client=di_client,
-                prowlarr_client=prowlarr_client,
-                request_store=request_store,
-                external_source="seerr",
-                external_id=request_id,
-                origin_source="seerr",
-                origin_details=json.dumps(_seerr_origin_details(item), ensure_ascii=False),
-                **_seerr_tv_scope(item),
-            )
+            scope = _seerr_tv_scope(item)
+            if settings.seerr_active_search_on_import:
+                response = create_scored_request(
+                    query=query,
+                    media_type=media_type,
+                    min_resolution="1080p",
+                    limit=100,
+                    target_path=target.path,
+                    settings=settings,
+                    metadata_result=metadata_result,
+                    di_client=di_client,
+                    prowlarr_client=prowlarr_client,
+                    request_store=request_store,
+                    external_source="seerr",
+                    external_id=request_id,
+                    origin_source="seerr",
+                    origin_details=json.dumps(_seerr_origin_details(item), ensure_ascii=False),
+                    **scope,
+                )
+            else:
+                response = create_unsearched_request_response(
+                    query=query,
+                    media_type=media_type,
+                    min_resolution="1080p",
+                    target=target,
+                    metadata_result=metadata_result,
+                    request_store=request_store,
+                    external_source="seerr",
+                    external_id=request_id,
+                    origin_source="seerr",
+                    origin_details=json.dumps(_seerr_origin_details(item), ensure_ascii=False),
+                    **scope,
+                )
             _create_seerr_monitored_items(
                 request_store=request_store,
                 request_id=response.request.id,
@@ -1272,7 +1340,7 @@ def sync_seerr_requests(
                 metadata_result=metadata_result,
                 seasons=_seerr_requested_seasons(item),
             )
-            if should_auto_grab:
+            if should_auto_grab and settings.seerr_active_search_on_import:
                 try:
                     auto_grab_seerr_request(
                         row=response.request.model_dump(),

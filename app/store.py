@@ -29,6 +29,7 @@ class Store:
                     media_type text not null,
                     category text,
                     result_id text,
+                    request_id integer,
                     monitored_item_id integer,
                     download_id text,
                     download_name text,
@@ -61,6 +62,7 @@ class Store:
                 "text",
             )
             self._ensure_column(conn, "grabs", "result_id", "text")
+            self._ensure_column(conn, "grabs", "request_id", "integer")
             self._ensure_column(conn, "grabs", "monitored_item_id", "integer")
             self._ensure_column(conn, "grabs", "download_id", "text")
             self._ensure_column(conn, "grabs", "download_name", "text")
@@ -733,6 +735,7 @@ class Store:
         request: GrabRequest,
         response: Any,
         *,
+        request_id: int | None = None,
         monitored_item_id: int | None = None,
     ) -> int:
         download_id, download_name = _download_identity(response)
@@ -740,16 +743,17 @@ class Store:
             cursor = conn.execute(
                 """
                 insert into grabs (
-                    title, media_type, category, result_id, monitored_item_id,
+                    title, media_type, category, result_id, request_id, monitored_item_id,
                     download_id, download_name, status, payload, response
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     request.title,
                     request.media_type,
                     request.category,
                     request.result_id,
+                    request_id,
                     monitored_item_id,
                     download_id,
                     download_name or request.title,
@@ -802,7 +806,7 @@ class Store:
             rows = conn.execute(
                 """
                 select id, created_at, title, media_type, category, updated_at,
-                       result_id, monitored_item_id, download_id, download_name,
+                       result_id, request_id, monitored_item_id, download_id, download_name,
                        status, completed_at, last_error
                 from grabs
                 order by id desc
@@ -816,16 +820,17 @@ class Store:
 def _download_identity(response: Any) -> tuple[str | None, str | None]:
     if not isinstance(response, dict):
         return None, None
-    for key in ("nzo_id", "id", "download_id", "job_id"):
+    for key in ("nzo_id", "nzoId", "NzoId", "id", "download_id", "downloadId", "job_id", "jobId"):
         value = response.get(key)
         if value is not None:
-            return str(value), _str_or_none(response.get("name") or response.get("nzbname"))
-    payload = response.get("response")
-    if isinstance(payload, list) and payload:
-        return _download_identity(payload[0])
-    if isinstance(payload, dict):
-        return _download_identity(payload)
-    return None, _str_or_none(response.get("name") or response.get("nzbname"))
+            return str(value), _str_or_none(response.get("name") or response.get("nzbname") or response.get("nzbName"))
+    for wrapper in ("response", "result", "data", "job", "queue"):
+        payload = response.get(wrapper)
+        if isinstance(payload, list) and payload:
+            return _download_identity(payload[0])
+        if isinstance(payload, dict):
+            return _download_identity(payload)
+    return None, _str_or_none(response.get("name") or response.get("nzbname") or response.get("nzbName"))
 
 
 def _str_or_none(value: Any) -> str | None:

@@ -6,6 +6,7 @@ from app.main import (
     should_mark_seerr_available,
     sync_seerr_requests,
 )
+from app.models import MetadataResult
 from app.store import Store
 
 
@@ -25,6 +26,29 @@ class FakeSeerrClient:
 class FakeStore:
     def get_media_request_by_external(self, external_source: str, external_id: str):
         return None
+
+
+class OneRequestSeerrClient:
+    def requests(self, *, take: int = 20, filter_name: str = "all"):
+        return [
+            {
+                "id": 20,
+                "mediaType": "movie",
+                "rootFolder": "/media/kids-movies",
+                "requestedBy": {"id": 1, "username": "admin"},
+                "is4k": False,
+                "serverId": 2,
+                "profileId": 7,
+            }
+        ]
+
+    def metadata_for_request(self, item):
+        return MetadataResult(title="Paddington in Peru", year=2024, tmdb_id="516729")
+
+
+class FailingSearchClient:
+    def search(self, request):  # pragma: no cover - should not be called
+        raise AssertionError("active search should not run during low-call Seerr import")
 
 
 def test_seerr_sync_skips_requests_without_exact_target_path() -> None:
@@ -51,6 +75,31 @@ def test_seerr_sync_skips_requests_without_exact_target_path() -> None:
         "Seerr request 10: missing rootFolder",
         "Seerr request 11: unconfigured rootFolder /media/not-configured",
     ]
+
+
+def test_seerr_sync_can_import_without_active_search(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+
+    result = sync_seerr_requests(
+        settings=Settings(
+            MOVIE_TARGETS="Kids Movies=/media/kids-movies",
+            SEERR_ACTIVE_SEARCH_ON_IMPORT=False,
+            SEERR_AUTO_GRAB=True,
+        ),
+        seerr_client=OneRequestSeerrClient(),
+        di_client=FailingSearchClient(),
+        prowlarr_client=FailingSearchClient(),
+        altmount_client=object(),
+        arr_client=object(),
+        request_store=store,
+    )
+
+    requests = store.recent_media_requests()
+    assert result.imported == 1
+    assert result.grabbed == 0
+    assert result.requests[0].search.total == 0
+    assert requests[0]["status"] == "no_results"
+    assert requests[0]["metadata_tmdb_id"] == "516729"
 
 
 def test_tv_episode_release_does_not_mark_whole_show_available() -> None:

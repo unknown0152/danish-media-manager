@@ -1,6 +1,6 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.36.1
+    image: ghcr.io/unknown0152/danish-media-manager:v0.37.0
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696
@@ -15,8 +15,9 @@ services:
       SEERR_SYNC_ENABLED: "true"
       SEERR_SYNC_INTERVAL_SECONDS: "60"
       SEERR_AUTO_GRAB: "true"
-      WANTED_SEARCH_ENABLED: "true"
-      WANTED_SEARCH_MAX_PER_CYCLE: "10"
+      SEERR_ACTIVE_SEARCH_ON_IMPORT: "false"
+      WANTED_SEARCH_ENABLED: "false"
+      WANTED_SEARCH_MAX_PER_CYCLE: "2"
       RECENT_FEED_SYNC_ENABLED: "true"
       RECENT_FEED_LIMIT: "500"
       MONITORED_REQUESTS_MAX_PER_CYCLE: "100"

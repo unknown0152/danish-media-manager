@@ -219,11 +219,28 @@ def test_grab_cached_result_links_grab_to_monitored_item(tmp_path) -> None:
     items = store.monitored_items_for_request(request["id"])
     assert response.ok is True
     assert grabs[0]["result_id"] == release.result_id
+    assert grabs[0]["request_id"] == request["id"]
     assert grabs[0]["monitored_item_id"] == items[0]["id"]
+    assert grabs[0]["download_id"] == "download-1"
     assert grabs[0]["status"] == "grabbed"
     assert "payload" not in grabs[0]
     assert "response" not in grabs[0]
     assert items[0]["status"] == "grabbed"
+
+
+def test_record_grab_extracts_nested_altmount_download_id(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    grab_id = store.record_grab(
+        GrabRequest(title="Nested", media_type="movie", result_id="result-1"),
+        {"status": True, "response": {"nzoId": "nested-id", "nzbName": "Nested Name"}},
+        request_id=42,
+    )
+
+    grab = store.recent_grabs()[0]
+    assert grab["id"] == grab_id
+    assert grab["request_id"] == 42
+    assert grab["download_id"] == "nested-id"
+    assert grab["download_name"] == "Nested Name"
 
 
 def test_create_scored_request_marks_monitored_item_ready(tmp_path) -> None:
