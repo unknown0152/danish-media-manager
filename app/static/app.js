@@ -14,11 +14,17 @@ const state = {
 const statusEl = document.querySelector("#status");
 const sidebarStatusEl = document.querySelector("#sidebarStatus");
 const serviceMetricEl = document.querySelector("#serviceMetric");
+const serviceMetricCardEl = document.querySelector("#serviceMetricCard");
 const requestMetricEl = document.querySelector("#requestMetric");
+const requestMetricCardEl = document.querySelector("#requestMetricCard");
 const requestMetricSubEl = document.querySelector("#requestMetricSub");
 const queueMetricEl = document.querySelector("#queueMetric");
+const queueMetricCardEl = document.querySelector("#queueMetricCard");
+const queueMetricMiniEl = document.querySelector("#queueMetricMini");
 const queueMetricSubEl = document.querySelector("#queueMetricSub");
 const indexerMetricEl = document.querySelector("#indexerMetric");
+const indexerMetricCardEl = document.querySelector("#indexerMetricCard");
+const indexerMetricMiniEl = document.querySelector("#indexerMetricMini");
 const indexerMetricSubEl = document.querySelector("#indexerMetricSub");
 const serviceStripEl = document.querySelector("#serviceStrip");
 const metadataEl = document.querySelector("#metadata");
@@ -63,6 +69,15 @@ acceptedOnlyInput.addEventListener("change", () => {
   renderResults();
 });
 
+document.querySelectorAll("[data-set-theme]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.documentElement.dataset.theme = button.dataset.setTheme;
+    document
+      .querySelectorAll("[data-set-theme]")
+      .forEach((item) => item.classList.toggle("is-active", item === button));
+  });
+});
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -83,6 +98,7 @@ async function loadStatus() {
       status.altmount_ready ? "ready" : "not ready"
     }`;
     serviceMetricEl.textContent = `${readyCount}/2 Ready`;
+    serviceMetricCardEl.textContent = `${readyCount} / 2`;
     statusEl.textContent = statusText;
     sidebarStatusEl.textContent = statusText;
     renderServiceStrip(status);
@@ -90,6 +106,7 @@ async function loadStatus() {
     statusEl.textContent = `Status failed: ${error.message}`;
     sidebarStatusEl.textContent = "Status failed";
     serviceMetricEl.textContent = "Offline";
+    serviceMetricCardEl.textContent = "Offline";
     serviceStripEl.innerHTML = "";
   }
 }
@@ -441,6 +458,8 @@ function renderDownloads(downloads) {
   const queueCount = (downloads.queue || []).length;
   const historyCount = (downloads.history || []).length;
   queueMetricEl.textContent = downloads.status || "Unknown";
+  queueMetricCardEl.textContent = downloads.status || "Unknown";
+  queueMetricMiniEl.textContent = downloads.status || "Unknown";
   queueMetricSubEl.textContent = `${queueCount} queued · ${historyCount} history · ${downloads.speed || "0 B/s"}`;
   downloadsEl.innerHTML = `${header}${queue}${history}`;
 }
@@ -532,6 +551,8 @@ async function refreshIndexers() {
     const enabledCount = indexers.filter((indexer) => indexer.enable === true).length;
     const failureCount = (diagnostics.indexer_failures || []).length;
     indexerMetricEl.textContent = `${enabledCount}/${indexers.length}`;
+    indexerMetricCardEl.textContent = `${enabledCount} / ${indexers.length}`;
+    indexerMetricMiniEl.textContent = `${enabledCount} / ${indexers.length}`;
     indexerMetricSubEl.textContent =
       failureCount > 0 ? `${failureCount} failing in Prowlarr` : "No active failures";
     indexersEl.innerHTML = indexers
@@ -590,6 +611,7 @@ async function refreshRequests() {
     ).length;
     const grabbedCount = requests.filter((request) => request.status === "grabbed").length;
     requestMetricEl.textContent = String(requests.length);
+    requestMetricCardEl.textContent = String(requests.length);
     requestMetricSubEl.textContent = `${wantedCount} wanted · ${grabbedCount} grabbed`;
     requestsEl.innerHTML = requests
       .map((request) => {

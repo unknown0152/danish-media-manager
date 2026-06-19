@@ -1,155 +1,255 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Danish Media Manager</title>
+    <meta name="color-scheme" content="dark light" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="app-frame">
-      <header class="topbar">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="sr-only" href="#main-content">Skip to content</a>
+
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">DM</div>
-          <div>
+          <div class="brand-copy">
             <h1>Danish Media Manager</h1>
             <p id="sidebarStatus">Checking services...</p>
           </div>
         </div>
-        <nav class="nav-list" aria-label="Primary">
-          <a href="#searchForm" class="active">Search</a>
-          <a href="#requests">Requests</a>
-          <a href="#downloads">Queue</a>
-          <a href="#prowlarrHealth">Health</a>
-        </nav>
-        <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
-        <div class="top-actions">
-          <span>DMM v0.30.0</span>
-          <button id="refreshQueue" type="button">Refresh Queue</button>
-          <button id="retryWanted" type="button">Retry wanted</button>
-        </div>
-      </header>
 
-      <main class="workbench">
-        <section class="command-center">
-          <div class="command-title">
-            <span class="eyebrow">Release Command</span>
-            <h2>Find the strongest Danish-ready release</h2>
-            <label class="filter-toggle">
-              <input id="acceptedOnly" type="checkbox" />
-              Accepted only
-            </label>
+        <div class="mode-switch" aria-label="Theme switcher">
+          <button class="is-active" type="button" data-set-theme="dark">Dark</button>
+          <button type="button" data-set-theme="light">Light</button>
+        </div>
+
+        <nav class="nav-list" aria-label="Primary navigation">
+          <a class="active" href="#searchForm"><span>Search</span><span>01</span></a>
+          <a href="#results"><span>Results</span><span>02</span></a>
+          <a href="#requests"><span>Requests</span><span>03</span></a>
+          <a href="#prowlarrHealth"><span>Health</span><span>04</span></a>
+        </nav>
+
+        <section id="serviceStrip" class="sidebar-stack" aria-label="Service status"></section>
+
+        <div class="sidebar-footer">
+          <div class="mini-card">
+            <strong>DMM v0.31.0</strong>
+            <span class="panel-subtitle">Live search, request recovery, queue state, and import health.</span>
           </div>
-          <div class="search-console">
-            <div class="segmented" role="group" aria-label="Media type">
-              <button class="active" data-type="movie" type="button">Movies</button>
-              <button data-type="tv" type="button">TV</button>
+          <button id="refreshQueue" class="btn" type="button">Refresh queue</button>
+        </div>
+      </aside>
+
+      <main class="content" id="main-content">
+        <div class="top-toolbar">
+          <div class="pill-row">
+            <span class="pill" id="serviceMetric">Checking</span>
+            <span class="pill" id="indexerMetric">Indexers</span>
+            <span class="pill" id="queueMetric">Queue</span>
+          </div>
+          <div class="toolbar-group">
+            <button id="retryWanted" class="btn" type="button">Retry wanted</button>
+            <button class="btn primary" type="submit" form="searchForm">New search</button>
+          </div>
+        </div>
+
+        <section class="hero" id="search">
+          <div class="hero-copy">
+            <span class="eyebrow">Media Operations</span>
+            <h2>Search, request, and recover releases with less friction.</h2>
+            <p id="status">Checking services...</p>
+            <div class="hero-actions">
+              <button class="btn primary" type="submit" form="searchForm">Run live search</button>
+              <a class="btn" href="#requests">Open wanted board</a>
             </div>
-            <form id="searchForm">
-              <div class="search-field">
-                <span aria-hidden="true">/</span>
-                <input id="query" name="query" placeholder="Search movie or series title" autocomplete="off" required />
-              </div>
-              <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
-                <option value="any">Any quality</option>
-                <option value="720p">720p+</option>
-                <option value="1080p">1080p+</option>
-                <option value="2160p">2160p only</option>
-              </select>
-              <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
-              <button type="submit" class="primary-action">Search</button>
-              <button id="requestBest" type="button">Request Best</button>
-            </form>
+          </div>
+
+          <div class="hero-side">
+            <div class="mini-card">
+              <span class="eyebrow">Current State</span>
+              <strong>Live queue, import checks, and indexer health stay visible.</strong>
+              <span id="requestMetricSub" class="panel-subtitle">No request data yet</span>
+            </div>
+            <div class="kpi-grid" aria-label="Quick stats">
+              <div class="kpi"><span>Requests</span><strong id="requestMetric">0</strong></div>
+              <div class="kpi"><span>Downloads</span><strong id="queueMetricMini">Idle</strong><small id="queueMetricSub">Waiting</small></div>
+              <div class="kpi"><span>Indexers</span><strong id="indexerMetricMini">Unknown</strong><small id="indexerMetricSub">Waiting</small></div>
+            </div>
           </div>
         </section>
 
-        <section class="metric-grid" aria-label="Current status">
+        <section class="metrics-grid" aria-label="Status metrics">
           <article class="metric-card">
             <span>Services</span>
-            <strong id="serviceMetric">Checking</strong>
-            <small id="status">Checking services...</small>
+            <strong id="serviceMetricCard">2 / 2</strong>
+            <div class="meta-line">Prowlarr and AltMount readiness</div>
           </article>
           <article class="metric-card">
             <span>Requests</span>
-            <strong id="requestMetric">0</strong>
-            <small id="requestMetricSub">No request data yet</small>
+            <strong id="requestMetricCard">0</strong>
+            <div class="meta-line">Wanted and grabbed request state</div>
           </article>
           <article class="metric-card">
             <span>Downloads</span>
-            <strong id="queueMetric">Unknown</strong>
-            <small id="queueMetricSub">Waiting for queue</small>
+            <strong id="queueMetricCard">Idle</strong>
+            <div class="meta-line">Queue, speed, and history</div>
           </article>
           <article class="metric-card">
             <span>Indexers</span>
-            <strong id="indexerMetric">Unknown</strong>
-            <small id="indexerMetricSub">Waiting for Prowlarr</small>
+            <strong id="indexerMetricCard">Unknown</strong>
+            <div class="meta-line">Prowlarr diagnostics</div>
           </article>
         </section>
 
-        <section class="media-board">
-          <aside class="request-board">
-            <div class="board-heading">
-              <span class="eyebrow">Request Deck</span>
-              <h2>Wanted and grabbed</h2>
-            </div>
-            <div id="requests" class="requests"></div>
-          </aside>
+        <section class="dashboard-grid">
+          <div class="panel-stack">
+            <section class="panel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Interactive Search</span>
+                  <h3>Find the best release</h3>
+                </div>
+                <label class="filter-toggle pill">
+                  <input id="acceptedOnly" type="checkbox" />
+                  Accepted only
+                </label>
+              </div>
 
-          <section class="release-cockpit">
-            <div class="board-heading cockpit-heading">
-              <div>
-                <span class="eyebrow">Release Cockpit</span>
-                <h2>Search results</h2>
+              <div class="search-shell">
+                <div class="segmented" role="group" aria-label="Media type">
+                  <button class="active" data-type="movie" type="button">Movies</button>
+                  <button data-type="tv" type="button">TV</button>
+                </div>
+
+                <form id="searchForm" class="form-grid">
+                  <label class="search-field">
+                    <span class="search-icon" aria-hidden="true">/</span>
+                    <input id="query" name="query" placeholder="Search movie or series title" autocomplete="off" required />
+                  </label>
+
+                  <label class="select-field">
+                    <select id="minResolution" name="minResolution" aria-label="Minimum resolution">
+                      <option value="any">Any quality</option>
+                      <option value="720p">720p+</option>
+                      <option value="1080p">1080p+</option>
+                      <option value="2160p">2160p only</option>
+                    </select>
+                  </label>
+
+                  <label class="select-field">
+                    <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
+                  </label>
+
+                  <button class="btn primary" type="submit">Search</button>
+                  <button id="requestBest" class="btn" type="button">Request best</button>
+                </form>
+
+                <div class="input-note">Target-aware search with DMM scoring, release metadata, and AltMount handoff.</div>
               </div>
-              <div class="table-legend">
-                <span>Score</span>
-                <span>Release</span>
-                <span>Quality</span>
-                <span>Action</span>
-              </div>
-            </div>
-            <div id="metadata" class="metadata-card"></div>
-            <div id="searchSummary" class="search-summary"></div>
-            <div class="release-shell">
-              <div class="release-header" aria-hidden="true">
-                <span>Score</span>
-                <span>Release</span>
-                <span>Quality / Size</span>
-                <span>Action</span>
-              </div>
-              <div id="results" class="results">
-                <div class="empty-state">
-                  <div class="empty-mark">DM</div>
-                  <strong>No active search</strong>
-                  <span>Search or open a stored request to inspect releases.</span>
+            </section>
+
+            <section class="panel" id="resultsPanel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Release Browser</span>
+                  <h3>Results</h3>
+                </div>
+                <div class="pill-row">
+                  <span class="pill">Score</span>
+                  <span class="pill">Quality</span>
+                  <span class="pill">Indexer</span>
                 </div>
               </div>
-            </div>
-          </section>
+
+              <div id="metadata" class="metadata-card"></div>
+              <div id="searchSummary" class="search-summary"></div>
+              <div class="results-shell">
+                <div class="results-head" aria-hidden="true">
+                  <span>Score</span>
+                  <span>Release</span>
+                  <span>Quality / Size</span>
+                  <span>Action</span>
+                </div>
+                <div id="results" class="results">
+                  <div class="empty-state">
+                    <div>
+                      <div class="empty-mark">DM</div>
+                      <strong>No active search</strong>
+                      <p class="muted">Search or open a stored request to inspect releases and compare score, quality, and indexer fit.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="inspector-stack">
+            <section class="inspector">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Wanted Board</span>
+                  <h3>Requests</h3>
+                </div>
+              </div>
+              <div id="requests" class="requests list-stack"></div>
+            </section>
+
+            <section class="inspector">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Transfer State</span>
+                  <h3>Downloads</h3>
+                </div>
+              </div>
+              <div id="downloads" class="downloads list-stack"></div>
+            </section>
+
+            <section class="inspector">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Import State</span>
+                  <h3>Import Health</h3>
+                </div>
+              </div>
+              <div id="importHealth" class="health list-stack"></div>
+            </section>
+
+            <section class="inspector">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Indexer Status</span>
+                  <h3>Indexers</h3>
+                </div>
+              </div>
+              <div id="indexers" class="grabs list-stack"></div>
+            </section>
+
+            <section class="inspector" id="prowlarrHealthPanel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Prowlarr Health</span>
+                  <h3>Diagnostics</h3>
+                </div>
+              </div>
+              <div id="prowlarrHealth" class="health list-stack"></div>
+            </section>
+
+            <section class="inspector">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Recent Activity</span>
+                  <h3>Recent Grabs</h3>
+                </div>
+              </div>
+              <div id="grabs" class="grabs list-stack"></div>
+            </section>
+          </aside>
         </section>
 
-        <section class="systems-grid">
-          <section class="system-panel downloads-section">
-            <h2>Downloads</h2>
-            <div id="downloads" class="downloads"></div>
-          </section>
-          <section class="system-panel">
-            <h2>Import Health</h2>
-            <div id="importHealth" class="health"></div>
-          </section>
-          <section class="system-panel">
-            <h2>Indexers</h2>
-            <div id="indexers" class="grabs"></div>
-          </section>
-          <section class="system-panel">
-            <h2>Prowlarr Health</h2>
-            <div id="prowlarrHealth" class="health"></div>
-          </section>
-          <section class="system-panel recent-panel">
-            <h2>Recent Grabs</h2>
-            <div id="grabs" class="grabs"></div>
-          </section>
-        </section>
+        <div class="footer-note">Danish Media Manager live UI built from the uploaded redesign direction.</div>
       </main>
     </div>
     <script src="/static/app.js"></script>
