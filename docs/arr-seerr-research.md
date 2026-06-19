@@ -156,9 +156,10 @@ DMM should become:
 - The current active wanted retry loop is useful as backfill, but it should not be the only automatic mechanism.
 - Implemented in v0.32.0: DMM now has a recent-feed sync path using Prowlarr once per movie/TV cycle, then local release-to-request matching before updating or grabbing a monitored request.
 - Implemented in v0.33.0: DMM now stores TV season/episode scope, preserves Seerr season details, records feed sync runs, and applies season/episode scope during TV feed matching.
+- Implemented in v0.34.0: DMM now creates first-class monitored child items for movies, TV series, seasons, and episodes. Feed sync updates the matching child item so a wanted-board UI can show item-level status instead of only request-level status.
 
-## Remaining gaps after v0.33.0
+## Remaining gaps after v0.34.0
 
-- TV now has request-level season/episode scope, but it is not yet a full Sonarr-style episode database. To fully match Sonarr, DMM still needs season/episode rows, air-date eligibility, queued/downloaded state, and cutoff-unmet tracking.
+- TV now has monitored item rows, but season requests are not expanded into every episode until DMM has episode-count metadata. To fully match Sonarr, DMM still needs metadata-backed episode expansion, air-date eligibility, queued/downloaded state, and cutoff-unmet tracking.
 - Recent-feed sync currently uses title/year matching. Stronger TMDB/TVDB/IMDB matching depends on indexers exposing enough attributes or DMM building richer parsing.
 - Feed history is not yet persisted per indexer, so DMM can report current failures but not exact "last successful RSS window" coverage like Arrs do.

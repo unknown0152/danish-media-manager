@@ -34,6 +34,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Watch the recent Prowlarr movie/TV feed like Arr RSS sync, match new releases locally against monitored requests, and update/grab only when a real candidate appears.
 - Preserve TV season/episode scope on manual requests and Seerr imports so feed matches can avoid grabbing the wrong season when Seerr asked for a specific one.
 - Store feed sync run history and per-request last feed check/match fields for debugging missed releases.
+- Maintain first-class monitored items for movies, TV series, TV seasons, and TV episodes, exposed through `/api/monitored-items` and `/api/requests/{id}/items`.
 - Keep missing/failed wanted requests on a bounded background retry loop.
 - Retry all wanted requests manually from the Requests panel.
 - Sync the recent feed manually with `POST /api/feed/sync`.
@@ -58,6 +59,8 @@ After the feed pass, DMM can also retry stored wanted rows with status `no_resul
 
 For TV, DMM stores `tv_season` and `tv_episode` when a request is scoped. Seerr multi-season requests preserve the full season list inside `origin_details`; single-season requests also populate `tv_season`. Recent feed matching uses that scope to reject obvious wrong-season releases.
 
+Each request also gets monitored child items. A movie request creates a `movie` item; a TV request creates a `series`, `season`, or `episode` item depending on scope. Seerr multi-season requests add season items for each requested season. These items track their own feed check/match state, which is the foundation for Sonarr-like wanted boards.
+
 ## Request Workflow
 
 Manual DMM requests store the search and best candidate until a user clicks grab. Seerr-imported requests can auto-grab through the background sync.
@@ -67,6 +70,8 @@ Useful endpoints:
 ```text
 POST /api/requests
 GET  /api/requests
+GET  /api/requests/{id}/items
+GET  /api/monitored-items
 POST /api/requests/{id}/search
 POST /api/requests/{id}/grab-best
 POST /api/seerr/sync

@@ -1,5 +1,12 @@
 from app.config import Settings
-from app.main import _seerr_origin_details, _seerr_tv_scope, should_mark_seerr_available, sync_seerr_requests
+from app.main import (
+    _create_seerr_monitored_items,
+    _seerr_origin_details,
+    _seerr_tv_scope,
+    should_mark_seerr_available,
+    sync_seerr_requests,
+)
+from app.store import Store
 
 
 class FakeSeerrClient:
@@ -67,3 +74,23 @@ def test_seerr_tv_scope_preserves_requested_seasons() -> None:
     assert _seerr_tv_scope(single) == {"tv_season": 2, "tv_episode": None}
     assert _seerr_tv_scope(multiple) == {"tv_season": None, "tv_episode": None}
     assert _seerr_origin_details(multiple)["seasons"] == [1, 2]
+
+
+def test_create_seerr_monitored_items_for_multi_season_request(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request("The Last of Us", "tv")
+    item = {
+        "mediaType": "tv",
+        "seasons": [{"seasonNumber": 1}, {"seasonNumber": 2}],
+    }
+
+    _create_seerr_monitored_items(
+        request_store=store,
+        request_id=request["id"],
+        media_type="tv",
+        item=item,
+    )
+
+    items = store.monitored_items_for_request(request["id"])
+    assert [row["item_type"] for row in items] == ["series", "season", "season"]
+    assert [row["season_number"] for row in items if row["item_type"] == "season"] == [1, 2]

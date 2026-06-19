@@ -25,6 +25,7 @@ from app.models import (
     MediaRequestCreate,
     MediaRequestResponse,
     MetadataResult,
+    MonitoredItem,
     ProwlarrDiagnostics,
     QualitySearchSummary,
     Release,
@@ -38,7 +39,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.33.0")
+app = FastAPI(title="Danish Media Manager", version="0.34.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -620,6 +621,9 @@ def sync_recent_releases(
             request_id = int(row["id"])
             try:
                 request_store.mark_media_request_feed_checked(request_id)
+                monitored_item = _monitored_item_for_row(request_store, row, None)
+                if monitored_item:
+                    request_store.mark_monitored_item_feed_checked(int(monitored_item["id"]))
                 metadata_result = _metadata_from_row(row)
                 query = _feed_match_query(row, metadata_result)
                 min_resolution = str(row.get("min_resolution") or "any")
@@ -664,6 +668,13 @@ def sync_recent_releases(
                     result.errors.append(f"Request {request_id}: disappeared during feed sync")
                     continue
                 request_store.mark_media_request_feed_matched(request_id, best.title)
+                matched_item = _monitored_item_for_row(request_store, updated, best)
+                if matched_item:
+                    request_store.mark_monitored_item_feed_matched(
+                        int(matched_item["id"]),
+                        result_id=best.result_id,
+                        title=best.title,
+                    )
                 result.updated += 1
                 if not auto_grab:
                     continue
@@ -729,6 +740,26 @@ def _feed_tv_scope_candidate(row: dict[str, object], release: Release) -> bool:
     if wanted_episode is not None and found_episode is not None and found_episode != wanted_episode:
         return False
     return True
+
+
+def _monitored_item_for_row(
+    request_store: Store,
+    row: dict[str, object],
+    release: Release | None,
+) -> dict[str, object] | None:
+    media_type = str(row.get("media_type") or "")
+    season_number = _int_or_none(row.get("tv_season"))
+    episode_number = _int_or_none(row.get("tv_episode"))
+    if media_type == "tv" and release is not None:
+        parsed_season, parsed_episode = _parse_release_tv_scope(release.title)
+        season_number = parsed_season if parsed_season is not None else season_number
+        episode_number = parsed_episode if parsed_episode is not None else episode_number
+    return request_store.best_monitored_item_for_scope(
+        int(row["id"]),
+        media_type=media_type,
+        season_number=season_number,
+        episode_number=episode_number,
+    )
 
 
 def _parse_release_tv_scope(title: str) -> tuple[int | None, int | None]:
@@ -863,6 +894,21 @@ def request_detail(request_id: int, request_store: Store = Depends(store)) -> Me
     if not row:
         raise HTTPException(status_code=404, detail="Request not found")
     return MediaRequest.model_validate(row)
+
+
+@app.get("/api/requests/{request_id}/items", response_model=list[MonitoredItem])
+def request_items(request_id: int, request_store: Store = Depends(store)) -> list[MonitoredItem]:
+    if not request_store.get_media_request(request_id):
+        raise HTTPException(status_code=404, detail="Request not found")
+    return [
+        MonitoredItem.model_validate(row)
+        for row in request_store.monitored_items_for_request(request_id)
+    ]
+
+
+@app.get("/api/monitored-items", response_model=list[MonitoredItem])
+def monitored_items(request_store: Store = Depends(store)) -> list[MonitoredItem]:
+    return [MonitoredItem.model_validate(row) for row in request_store.monitored_items()]
 
 
 @app.post("/api/requests/{request_id}/search", response_model=MediaRequestResponse)
@@ -1044,6 +1090,12 @@ def sync_seerr_requests(
                 origin_details=json.dumps(_seerr_origin_details(item), ensure_ascii=False),
                 **_seerr_tv_scope(item),
             )
+            _create_seerr_monitored_items(
+                request_store=request_store,
+                request_id=response.request.id,
+                media_type=media_type,
+                item=item,
+            )
             if should_auto_grab:
                 try:
                     auto_grab_seerr_request(
@@ -1170,6 +1222,27 @@ def _seerr_origin_details(item: dict[str, object]) -> dict[str, object]:
         if value is not None:
             details[key] = value
     return details
+
+
+def _create_seerr_monitored_items(
+    *,
+    request_store: Store,
+    request_id: int,
+    media_type: str,
+    item: dict[str, object],
+) -> None:
+    if media_type != "tv":
+        return
+    seasons = _seerr_requested_seasons(item)
+    if len(seasons) <= 1:
+        return
+    for season in seasons:
+        request_store.create_monitored_item(
+            request_id,
+            media_type="tv",
+            item_type="season",
+            season_number=season,
+        )
 
 
 def _seerr_requested_seasons(item: dict[str, object]) -> list[int]:

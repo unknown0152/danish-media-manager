@@ -159,11 +159,15 @@ def test_recent_feed_sync_respects_tv_season_scope(tmp_path) -> None:
     )
 
     updated = store.get_media_request(request["id"])
+    items = store.monitored_items_for_request(request["id"])
     assert prowlarr.calls == [("tv", 500)]
     assert result.tv_seen == 2
     assert result.matched == 1
     assert updated is not None
     assert updated["best_title"] == "The.Last.of.Us.S02.NORDiC.1080p.WEB-DL-GROUP"
+    assert items[0]["item_type"] == "season"
+    assert items[0]["status"] == "ready"
+    assert items[0]["best_title"] == "The.Last.of.Us.S02.NORDiC.1080p.WEB-DL-GROUP"
 
 
 def test_recent_feed_sync_can_auto_grab_best_release(tmp_path) -> None:

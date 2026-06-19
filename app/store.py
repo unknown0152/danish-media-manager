@@ -97,6 +97,25 @@ class Store:
                 )
                 """
             )
+            conn.execute(
+                """
+                create table if not exists monitored_items (
+                    id integer primary key autoincrement,
+                    request_id integer not null,
+                    created_at text not null default current_timestamp,
+                    updated_at text not null default current_timestamp,
+                    media_type text not null,
+                    item_type text not null,
+                    season_number integer,
+                    episode_number integer,
+                    status text not null default 'monitoring',
+                    best_result_id text,
+                    best_title text,
+                    last_feed_checked_at text,
+                    last_feed_matched_at text
+                )
+                """
+            )
             self._ensure_column(conn, "release_cache", "request_id", "integer")
             self._ensure_column(
                 conn,
@@ -119,6 +138,7 @@ class Store:
             self._ensure_column(conn, "media_requests", "last_feed_matched_at", "text")
             self._ensure_column(conn, "media_requests", "last_feed_match_title", "text")
             self._ensure_column(conn, "media_requests", "last_search_at", "text")
+            self._backfill_monitored_items(conn)
 
     def _ensure_column(
         self, conn: sqlite3.Connection, table: str, column: str, definition: str
@@ -130,6 +150,14 @@ class Store:
         }
         if column not in columns:
             conn.execute(f"alter table {table} add column {column} {definition}")
+
+    def _backfill_monitored_items(self, conn: sqlite3.Connection) -> None:
+        count = conn.execute("select count(*) as count from monitored_items").fetchone()["count"]
+        if count:
+            return
+        rows = conn.execute("select * from media_requests order by id").fetchall()
+        for row in rows:
+            self._create_default_monitored_item(conn, dict(row))
 
     def create_media_request(
         self,
@@ -182,7 +210,163 @@ class Store:
                 """,
                 (cursor.lastrowid,),
             ).fetchone()
+            row_dict = dict(row)
+            self._create_default_monitored_item(conn, row_dict)
+        return row_dict
+
+    def _create_default_monitored_item(
+        self,
+        conn: sqlite3.Connection,
+        row: dict[str, Any],
+    ) -> None:
+        media_type = str(row.get("media_type") or "")
+        season_number = row.get("tv_season") if isinstance(row.get("tv_season"), int) else None
+        episode_number = row.get("tv_episode") if isinstance(row.get("tv_episode"), int) else None
+        if media_type == "movie":
+            item_type = "movie"
+        elif media_type == "tv" and season_number is not None and episode_number is not None:
+            item_type = "episode"
+        elif media_type == "tv" and season_number is not None:
+            item_type = "season"
+        elif media_type == "tv":
+            item_type = "series"
+        else:
+            return
+        conn.execute(
+            """
+            insert into monitored_items (
+                request_id, media_type, item_type, season_number, episode_number
+            )
+            values (?, ?, ?, ?, ?)
+            """,
+            (row["id"], media_type, item_type, season_number, episode_number),
+        )
+
+    def create_monitored_item(
+        self,
+        request_id: int,
+        *,
+        media_type: str,
+        item_type: str,
+        season_number: int | None = None,
+        episode_number: int | None = None,
+        status: str = "monitoring",
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                insert into monitored_items (
+                    request_id, media_type, item_type, season_number, episode_number, status
+                )
+                values (?, ?, ?, ?, ?, ?)
+                """,
+                (request_id, media_type, item_type, season_number, episode_number, status),
+            )
+            row = conn.execute(
+                """
+                select *
+                from monitored_items
+                where id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
         return dict(row)
+
+    def monitored_items_for_request(self, request_id: int) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select *
+                from monitored_items
+                where request_id = ?
+                order by
+                    case item_type
+                        when 'movie' then 0
+                        when 'series' then 1
+                        when 'season' then 2
+                        when 'episode' then 3
+                        else 9
+                    end,
+                    season_number,
+                    episode_number,
+                    id
+                """,
+                (request_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def monitored_items(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select *
+                from monitored_items
+                order by updated_at asc, id asc
+                limit ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def best_monitored_item_for_scope(
+        self,
+        request_id: int,
+        *,
+        media_type: str,
+        season_number: int | None = None,
+        episode_number: int | None = None,
+    ) -> dict[str, Any] | None:
+        items = self.monitored_items_for_request(request_id)
+        if media_type == "movie":
+            return next((item for item in items if item.get("item_type") == "movie"), None)
+        if season_number is not None and episode_number is not None:
+            for item in items:
+                if (
+                    item.get("item_type") == "episode"
+                    and item.get("season_number") == season_number
+                    and item.get("episode_number") == episode_number
+                ):
+                    return item
+        if season_number is not None:
+            for item in items:
+                if item.get("item_type") == "season" and item.get("season_number") == season_number:
+                    return item
+        return next((item for item in items if item.get("item_type") == "series"), None)
+
+    def mark_monitored_item_feed_checked(self, item_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update monitored_items
+                set updated_at = current_timestamp,
+                    last_feed_checked_at = current_timestamp
+                where id = ?
+                """,
+                (item_id,),
+            )
+
+    def mark_monitored_item_feed_matched(
+        self,
+        item_id: int,
+        *,
+        result_id: str,
+        title: str,
+        status: str = "ready",
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update monitored_items
+                set updated_at = current_timestamp,
+                    status = ?,
+                    best_result_id = ?,
+                    best_title = ?,
+                    last_feed_checked_at = current_timestamp,
+                    last_feed_matched_at = current_timestamp
+                where id = ?
+                """,
+                (status, result_id, title, item_id),
+            )
 
     def get_media_request_by_external(
         self,

@@ -80,6 +80,22 @@ class MediaRequest(BaseModel):
     rejected: int = 0
 
 
+class MonitoredItem(BaseModel):
+    id: int
+    request_id: int
+    created_at: str
+    updated_at: str
+    media_type: MediaType
+    item_type: str
+    season_number: int | None = None
+    episode_number: int | None = None
+    status: str
+    best_result_id: str | None = None
+    best_title: str | None = None
+    last_feed_checked_at: str | None = None
+    last_feed_matched_at: str | None = None
+
+
 class GrabRequest(BaseModel):
     title: str
     media_type: MediaType = "movie"

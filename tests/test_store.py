@@ -115,3 +115,41 @@ def test_store_persists_tv_scope_and_feed_run(tmp_path) -> None:
     assert updated["last_feed_match_title"] == "The.Last.of.Us.S02E07.NORDiC.1080p"
     assert runs[0]["id"] == run_id
     assert runs[0]["tv_seen"] == 50
+
+
+def test_store_creates_default_monitored_items(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    movie = store.create_media_request("Primer 2004", "movie")
+    season = store.create_media_request("The Last of Us", "tv", tv_season=2)
+    episode = store.create_media_request("The Last of Us S02E07", "tv", tv_season=2, tv_episode=7)
+
+    movie_items = store.monitored_items_for_request(movie["id"])
+    season_items = store.monitored_items_for_request(season["id"])
+    episode_items = store.monitored_items_for_request(episode["id"])
+
+    assert movie_items[0]["item_type"] == "movie"
+    assert season_items[0]["item_type"] == "season"
+    assert season_items[0]["season_number"] == 2
+    assert episode_items[0]["item_type"] == "episode"
+    assert episode_items[0]["season_number"] == 2
+    assert episode_items[0]["episode_number"] == 7
+
+
+def test_store_marks_matching_monitored_item(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request("The Last of Us", "tv", tv_season=2)
+    item = store.monitored_items_for_request(request["id"])[0]
+
+    store.mark_monitored_item_feed_checked(item["id"])
+    store.mark_monitored_item_feed_matched(
+        item["id"],
+        result_id="release-1",
+        title="The.Last.of.Us.S02.NORDiC.1080p",
+    )
+
+    updated = store.monitored_items_for_request(request["id"])[0]
+    assert updated["status"] == "ready"
+    assert updated["best_result_id"] == "release-1"
+    assert updated["best_title"] == "The.Last.of.Us.S02.NORDiC.1080p"
+    assert updated["last_feed_checked_at"] is not None
+    assert updated["last_feed_matched_at"] is not None
