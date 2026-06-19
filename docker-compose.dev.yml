@@ -15,7 +15,7 @@ services:
       SEERR_API_KEY: ${SEERR_API_KEY:-}
       DATABASE_PATH: /data/danish-media-manager.db
       SEERR_AUTO_GRAB: "true"
-      SEERR_ACTIVE_SEARCH_ON_IMPORT: "false"
+      SEERR_ACTIVE_SEARCH_ON_IMPORT: "true"
       RECENT_FEED_SYNC_ENABLED: "true"
       RECENT_FEED_SYNC_INTERVAL_SECONDS: "900"
       RECENT_FEED_LIMIT: "500"

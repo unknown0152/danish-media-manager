@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     seerr_sync_enabled: bool = Field(default=True, alias="SEERR_SYNC_ENABLED")
     seerr_sync_interval_seconds: int = Field(default=60, alias="SEERR_SYNC_INTERVAL_SECONDS")
     seerr_auto_grab: bool = Field(default=True, alias="SEERR_AUTO_GRAB")
-    seerr_active_search_on_import: bool = Field(default=False, alias="SEERR_ACTIVE_SEARCH_ON_IMPORT")
+    seerr_active_search_on_import: bool = Field(default=True, alias="SEERR_ACTIVE_SEARCH_ON_IMPORT")
     wanted_search_enabled: bool = Field(default=False, alias="WANTED_SEARCH_ENABLED")
     wanted_search_max_per_cycle: int = Field(default=10, alias="WANTED_SEARCH_MAX_PER_CYCLE")
     recent_feed_sync_enabled: bool = Field(default=True, alias="RECENT_FEED_SYNC_ENABLED")

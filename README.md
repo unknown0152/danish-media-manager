@@ -57,7 +57,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 
 Seerr can remain the family/user request UI. DMM imports recent Seerr requests, resolves metadata from Seerr, runs Danish Intelligence rich search, scores releases, repairs the matching Radarr/Sonarr target path/profile, and can send the best accepted candidate to AltMount. This avoids making Seerr/Radarr/Sonarr the release decision brain.
 
-The background Seerr sync is enabled by default when `SEERR_API_KEY` is set. It runs every `SEERR_SYNC_INTERVAL_SECONDS` seconds and defaults to `60`. By default, Seerr import is low-call: DMM imports the request and metadata but does not run an active indexer search during import unless `SEERR_ACTIVE_SEARCH_ON_IMPORT=true`. DMM also has an Arr-style recent-feed monitor enabled with `RECENT_FEED_SYNC_ENABLED=true`: each cycle it asks Prowlarr once for recent movies and once for recent TV, then matches those releases locally against monitored DMM requests. This is the primary path for newly posted releases and avoids one indexer search per wanted item.
+The background Seerr sync is enabled by default when `SEERR_API_KEY` is set. It runs every `SEERR_SYNC_INTERVAL_SECONDS` seconds and defaults to `60`. By default, new Seerr imports run one active DMM search and can auto-grab the best accepted release when `SEERR_AUTO_GRAB=true`, so Seerr requests behave like immediate download requests. Set `SEERR_ACTIVE_SEARCH_ON_IMPORT=false` for low API-call operation where DMM only imports the request and waits for recent-feed matching or a manual search. DMM also has an Arr-style recent-feed monitor enabled with `RECENT_FEED_SYNC_ENABLED=true`: each cycle it asks Prowlarr once for recent movies and once for recent TV, then matches those releases locally against monitored requests.
 
 After the feed pass, DMM can also retry stored wanted rows with status `no_results`, `search_failed`, or `grab_failed`. That retry loop is opt-in with `WANTED_SEARCH_ENABLED=true` and bounded by `WANTED_SEARCH_MAX_PER_CYCLE`, default `10`, so it remains a slower backfill path instead of the normal request path. The sync endpoints can still be called manually with `POST /api/seerr/sync`, `POST /api/feed/sync`, and `POST /api/wanted/retry`.
 
@@ -179,7 +179,7 @@ The container expects to be on the same Docker network as `prowlarr` and
 | `SONARR_API_KEY` | empty | Optional Sonarr API key |
 | `SEERR_URL` | `http://seerr:5055` | Optional Seerr/Jellyseerr API base URL for metadata lookup |
 | `SEERR_API_KEY` | empty | Optional Seerr/Jellyseerr API key |
-| `SEERR_ACTIVE_SEARCH_ON_IMPORT` | `false` | Run full active search immediately when importing a new Seerr request; leave false for low API-call operation |
+| `SEERR_ACTIVE_SEARCH_ON_IMPORT` | `true` | Run full active search immediately when importing a new Seerr request; set false for low API-call operation |
 | `RECENT_FEED_SYNC_ENABLED` | `true` | Watch recent Prowlarr movie/TV feeds and match them against monitored requests |
 | `RECENT_FEED_LIMIT` | `500` | Max recent Prowlarr releases fetched per media type each cycle |
 | `MONITORED_REQUESTS_MAX_PER_CYCLE` | `100` | Max monitored DMM requests checked against the recent feed each cycle |
