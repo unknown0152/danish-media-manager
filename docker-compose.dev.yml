@@ -14,7 +14,7 @@ services:
       SEERR_URL: http://seerr:5055
       SEERR_API_KEY: ${SEERR_API_KEY:-}
       DATABASE_PATH: /data/danish-media-manager.db
-      SEERR_AUTO_GRAB: "false"
+      SEERR_AUTO_GRAB: "true"
       RECENT_FEED_SYNC_ENABLED: "true"
       RECENT_FEED_LIMIT: "500"
       WANTED_SEARCH_ENABLED: "true"
