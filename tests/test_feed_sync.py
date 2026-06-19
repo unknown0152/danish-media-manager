@@ -66,11 +66,15 @@ def test_recent_feed_sync_marks_matching_request_ready(tmp_path) -> None:
     updated = store.get_media_request(request["id"])
     assert prowlarr.calls == [("movie", 500)]
     assert result.movies_seen == 1
+    assert result.run_id is not None
+    assert result.requests_checked == 1
     assert result.matched == 1
     assert result.updated == 1
     assert updated is not None
     assert updated["status"] == "ready"
     assert updated["best_title"] == "The.Batman.2022.NORDiC.1080p.BluRay.x265-GROUP"
+    assert updated["last_feed_checked_at"] is not None
+    assert updated["last_feed_matched_at"] is not None
 
 
 def test_recent_feed_sync_ignores_wrong_year(tmp_path) -> None:
@@ -112,6 +116,54 @@ def test_recent_feed_sync_ignores_wrong_year(tmp_path) -> None:
     assert updated is not None
     assert updated["status"] == "no_results"
     assert updated["best_title"] is None
+
+
+def test_recent_feed_sync_respects_tv_season_scope(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request(
+        "The Last of Us",
+        "tv",
+        "1080p",
+        metadata=MetadataResult(title="The Last of Us", year=2023),
+        tv_season=2,
+    )
+    store.set_media_request_status(request["id"], "no_results")
+    prowlarr = FakeProwlarr(
+        {
+            "tv": [
+                {
+                    "title": "The.Last.of.Us.S01.NORDiC.1080p.WEB-DL-GROUP",
+                    "downloadUrl": "http://example.invalid/s01.nzb",
+                    "indexer": "TestIndexer",
+                    "size": 20_000_000_000,
+                },
+                {
+                    "title": "The.Last.of.Us.S02.NORDiC.1080p.WEB-DL-GROUP",
+                    "downloadUrl": "http://example.invalid/s02.nzb",
+                    "indexer": "TestIndexer",
+                    "size": 20_000_000_000,
+                },
+            ]
+        }
+    )
+
+    result = sync_recent_releases(
+        limit=20,
+        feed_limit=500,
+        auto_grab=False,
+        settings=Settings(),
+        prowlarr_client=prowlarr,  # type: ignore[arg-type]
+        altmount_client=RecordingAltMount(),  # type: ignore[arg-type]
+        arr_client=ReadyArr(),  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    updated = store.get_media_request(request["id"])
+    assert prowlarr.calls == [("tv", 500)]
+    assert result.tv_seen == 2
+    assert result.matched == 1
+    assert updated is not None
+    assert updated["best_title"] == "The.Last.of.Us.S02.NORDiC.1080p.WEB-DL-GROUP"
 
 
 def test_recent_feed_sync_can_auto_grab_best_release(tmp_path) -> None:

@@ -1,5 +1,5 @@
 from app.config import Settings
-from app.main import should_mark_seerr_available, sync_seerr_requests
+from app.main import _seerr_origin_details, _seerr_tv_scope, should_mark_seerr_available, sync_seerr_requests
 
 
 class FakeSeerrClient:
@@ -50,3 +50,20 @@ def test_tv_episode_release_does_not_mark_whole_show_available() -> None:
     assert should_mark_seerr_available("movie", "Primer.2004.NORDiC.1080p.BluRay") is True
     assert should_mark_seerr_available("tv", "The.Last.of.Us.2023.S02E07.NORDiC.2160p") is False
     assert should_mark_seerr_available("tv", "The.Chestnut.Man.2021.S01.2160p.WEB-DL") is True
+
+
+def test_seerr_tv_scope_preserves_requested_seasons() -> None:
+    single = {
+        "mediaType": "tv",
+        "rootFolder": "/media/tv",
+        "seasons": [{"seasonNumber": 2}],
+    }
+    multiple = {
+        "mediaType": "tv",
+        "rootFolder": "/media/tv",
+        "seasons": [{"seasonNumber": 1}, {"seasonNumber": 2}],
+    }
+
+    assert _seerr_tv_scope(single) == {"tv_season": 2, "tv_episode": None}
+    assert _seerr_tv_scope(multiple) == {"tv_season": None, "tv_episode": None}
+    assert _seerr_origin_details(multiple)["seasons"] == [1, 2]

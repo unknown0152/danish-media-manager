@@ -38,11 +38,13 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.32.0")
+app = FastAPI(title="Danish Media Manager", version="0.33.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
 TV_SEASON_RE = re.compile(r"\bS\d{1,2}\b|\bSeason[ ._-]?\d{1,2}\b", re.IGNORECASE)
+TV_EPISODE_NUM_RE = re.compile(r"\bS(?P<season>\d{1,2})E(?P<episode>\d{1,3})\b", re.IGNORECASE)
+TV_SEASON_NUM_RE = re.compile(r"\bS(?P<season>\d{1,2})\b|\bSeason[ ._-]?(?P<word_season>\d{1,2})\b", re.IGNORECASE)
 WANTED_RETRY_STATUSES = {"no_results", "search_failed", "grab_failed"}
 
 
@@ -166,6 +168,10 @@ def create_scored_request(
     request_store: Store,
     external_source: str | None = None,
     external_id: str | None = None,
+    origin_source: str | None = None,
+    origin_details: str | None = None,
+    tv_season: int | None = None,
+    tv_episode: int | None = None,
 ) -> MediaRequestResponse:
     target = target_for_path(settings, media_type, target_path)
     row = request_store.create_media_request(
@@ -177,6 +183,10 @@ def create_scored_request(
         metadata=metadata_result,
         external_source=external_source,
         external_id=external_id,
+        origin_source=origin_source,
+        origin_details=origin_details,
+        tv_season=tv_season,
+        tv_episode=tv_episode,
     )
     request_id = int(row["id"])
     search_request = SearchRequest(
@@ -577,6 +587,7 @@ def sync_recent_releases(
 ) -> FeedSyncResult:
     result = FeedSyncResult()
     rows = request_store.monitored_media_requests(limit=max(1, min(limit, 500)))
+    result.requests_checked = len(rows)
     by_type: dict[str, list[dict]] = {"movie": [], "tv": []}
     for row in rows:
         media_type = str(row.get("media_type") or "")
@@ -608,6 +619,7 @@ def sync_recent_releases(
         for row in media_rows:
             request_id = int(row["id"])
             try:
+                request_store.mark_media_request_feed_checked(request_id)
                 metadata_result = _metadata_from_row(row)
                 query = _feed_match_query(row, metadata_result)
                 min_resolution = str(row.get("min_resolution") or "any")
@@ -621,6 +633,8 @@ def sync_recent_releases(
                         expected_year,
                     )
                     if _feed_title_candidate(release):
+                        if not _feed_tv_scope_candidate(row, release):
+                            continue
                         releases.append(release)
                 releases.sort(key=release_sort_key, reverse=True)
                 best = best_release(releases)
@@ -649,6 +663,7 @@ def sync_recent_releases(
                 if not updated:
                     result.errors.append(f"Request {request_id}: disappeared during feed sync")
                     continue
+                request_store.mark_media_request_feed_matched(request_id, best.title)
                 result.updated += 1
                 if not auto_grab:
                     continue
@@ -671,6 +686,17 @@ def sync_recent_releases(
                 result.grabbed += 1
             except Exception as exc:
                 result.errors.append(f"Request {request_id}: {exc}")
+    result.run_id = request_store.record_feed_sync_run(
+        movies_seen=result.movies_seen,
+        tv_seen=result.tv_seen,
+        requests_checked=result.requests_checked,
+        matched=result.matched,
+        updated=result.updated,
+        grabbed=result.grabbed,
+        grab_failed=result.grab_failed,
+        skipped=result.skipped,
+        errors=result.errors,
+    )
     return result
 
 
@@ -686,6 +712,43 @@ def _feed_title_candidate(release: Release) -> bool:
     if release.title_match.year_matches is False:
         return False
     return release.title_match.token_overlap >= 0.6
+
+
+def _feed_tv_scope_candidate(row: dict[str, object], release: Release) -> bool:
+    if str(row.get("media_type") or "") != "tv":
+        return True
+    wanted_season = _int_or_none(row.get("tv_season"))
+    wanted_episode = _int_or_none(row.get("tv_episode"))
+    if wanted_season is None and wanted_episode is None:
+        return True
+    found_season, found_episode = _parse_release_tv_scope(release.title)
+    if found_season is None:
+        return True
+    if wanted_season is not None and found_season != wanted_season:
+        return False
+    if wanted_episode is not None and found_episode is not None and found_episode != wanted_episode:
+        return False
+    return True
+
+
+def _parse_release_tv_scope(title: str) -> tuple[int | None, int | None]:
+    episode_match = TV_EPISODE_NUM_RE.search(title)
+    if episode_match:
+        return int(episode_match.group("season")), int(episode_match.group("episode"))
+    season_match = TV_SEASON_NUM_RE.search(title)
+    if season_match:
+        season = season_match.group("season") or season_match.group("word_season")
+        return int(season), None
+    return None, None
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
 
 
 @app.get("/")
@@ -756,6 +819,9 @@ def create_request(
         di_client=di_client,
         prowlarr_client=prowlarr_client,
         request_store=request_store,
+        origin_source="dmm",
+        tv_season=request.tv_season,
+        tv_episode=request.tv_episode,
     )
 
 
@@ -974,6 +1040,9 @@ def sync_seerr_requests(
                 request_store=request_store,
                 external_source="seerr",
                 external_id=request_id,
+                origin_source="seerr",
+                origin_details=json.dumps(_seerr_origin_details(item), ensure_ascii=False),
+                **_seerr_tv_scope(item),
             )
             if should_auto_grab:
                 try:
@@ -1052,6 +1121,21 @@ def grabs(request_store: Store = Depends(store)) -> list[dict[str, object]]:
     return request_store.recent_grabs()
 
 
+@app.get("/api/feed/runs")
+def feed_runs(request_store: Store = Depends(store)) -> list[dict[str, object]]:
+    runs: list[dict[str, object]] = []
+    for row in request_store.recent_feed_sync_runs():
+        normalized = dict(row)
+        errors_json = normalized.pop("errors_json", "[]")
+        try:
+            errors = json.loads(str(errors_json))
+        except json.JSONDecodeError:
+            errors = []
+        normalized["errors"] = errors if isinstance(errors, list) else []
+        runs.append(normalized)
+    return runs
+
+
 def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:
     title = row.get("metadata_title")
     if not isinstance(title, str) or not title:
@@ -1065,3 +1149,39 @@ def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:
         else None,
         source="stored",
     )
+
+
+def _seerr_tv_scope(item: dict[str, object]) -> dict[str, int | None]:
+    if seerr_media_type(item) != "tv":
+        return {"tv_season": None, "tv_episode": None}
+    seasons = _seerr_requested_seasons(item)
+    if len(seasons) == 1:
+        return {"tv_season": seasons[0], "tv_episode": None}
+    return {"tv_season": None, "tv_episode": None}
+
+
+def _seerr_origin_details(item: dict[str, object]) -> dict[str, object]:
+    details: dict[str, object] = {}
+    seasons = _seerr_requested_seasons(item)
+    if seasons:
+        details["seasons"] = seasons
+    for key in ("requestedBy", "is4k", "serverId", "profileId", "rootFolder"):
+        value = item.get(key)
+        if value is not None:
+            details[key] = value
+    return details
+
+
+def _seerr_requested_seasons(item: dict[str, object]) -> list[int]:
+    seasons: list[int] = []
+    raw = item.get("seasons")
+    if not isinstance(raw, list):
+        return seasons
+    for season in raw:
+        if not isinstance(season, dict):
+            continue
+        value = season.get("seasonNumber")
+        number = _int_or_none(value)
+        if number is not None:
+            seasons.append(number)
+    return sorted(set(seasons))

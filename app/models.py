@@ -27,6 +27,8 @@ class MediaRequestCreate(BaseModel):
     limit: int = Field(default=100, ge=1, le=500)
     min_resolution: MinimumResolution = "any"
     target_path: str | None = None
+    tv_season: int | None = Field(default=None, ge=0)
+    tv_episode: int | None = Field(default=None, ge=1)
 
 
 class MetadataResult(BaseModel):
@@ -61,6 +63,14 @@ class MediaRequest(BaseModel):
     metadata_poster_url: str | None = None
     external_source: str | None = None
     external_id: str | None = None
+    origin_source: str | None = None
+    origin_details: str | None = None
+    tv_season: int | None = None
+    tv_episode: int | None = None
+    last_feed_checked_at: str | None = None
+    last_feed_matched_at: str | None = None
+    last_feed_match_title: str | None = None
+    last_search_at: str | None = None
     status: str
     best_result_id: str | None = None
     best_title: str | None = None
@@ -170,8 +180,10 @@ class WantedRetryResult(BaseModel):
 
 
 class FeedSyncResult(BaseModel):
+    run_id: int | None = None
     movies_seen: int = 0
     tv_seen: int = 0
+    requests_checked: int = 0
     matched: int = 0
     updated: int = 0
     grabbed: int = 0

@@ -62,6 +62,14 @@ class Store:
                     metadata_poster_url text,
                     external_source text,
                     external_id text,
+                    origin_source text,
+                    origin_details text,
+                    tv_season integer,
+                    tv_episode integer,
+                    last_feed_checked_at text,
+                    last_feed_matched_at text,
+                    last_feed_match_title text,
+                    last_search_at text,
                     status text not null default 'new',
                     best_result_id text,
                     best_title text,
@@ -69,6 +77,23 @@ class Store:
                     total integer not null default 0,
                     accepted integer not null default 0,
                     rejected integer not null default 0
+                )
+                """
+            )
+            conn.execute(
+                """
+                create table if not exists feed_sync_runs (
+                    id integer primary key autoincrement,
+                    created_at text not null default current_timestamp,
+                    movies_seen integer not null default 0,
+                    tv_seen integer not null default 0,
+                    requests_checked integer not null default 0,
+                    matched integer not null default 0,
+                    updated integer not null default 0,
+                    grabbed integer not null default 0,
+                    grab_failed integer not null default 0,
+                    skipped integer not null default 0,
+                    errors_json text not null default '[]'
                 )
                 """
             )
@@ -86,6 +111,14 @@ class Store:
             self._ensure_column(conn, "media_requests", "metadata_poster_url", "text")
             self._ensure_column(conn, "media_requests", "external_source", "text")
             self._ensure_column(conn, "media_requests", "external_id", "text")
+            self._ensure_column(conn, "media_requests", "origin_source", "text")
+            self._ensure_column(conn, "media_requests", "origin_details", "text")
+            self._ensure_column(conn, "media_requests", "tv_season", "integer")
+            self._ensure_column(conn, "media_requests", "tv_episode", "integer")
+            self._ensure_column(conn, "media_requests", "last_feed_checked_at", "text")
+            self._ensure_column(conn, "media_requests", "last_feed_matched_at", "text")
+            self._ensure_column(conn, "media_requests", "last_feed_match_title", "text")
+            self._ensure_column(conn, "media_requests", "last_search_at", "text")
 
     def _ensure_column(
         self, conn: sqlite3.Connection, table: str, column: str, definition: str
@@ -108,6 +141,10 @@ class Store:
         metadata: MetadataResult | None = None,
         external_source: str | None = None,
         external_id: str | None = None,
+        origin_source: str | None = None,
+        origin_details: str | None = None,
+        tv_season: int | None = None,
+        tv_episode: int | None = None,
     ) -> dict[str, Any]:
         with self._connect() as conn:
             cursor = conn.execute(
@@ -115,9 +152,10 @@ class Store:
                 insert into media_requests (
                     query, media_type, min_resolution, target_path, target_label,
                     metadata_title, metadata_year, metadata_poster_url,
-                    external_source, external_id
+                    external_source, external_id, origin_source, origin_details,
+                    tv_season, tv_episode
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     query,
@@ -130,6 +168,10 @@ class Store:
                     metadata.poster_url if metadata else None,
                     external_source,
                     external_id,
+                    origin_source,
+                    origin_details,
+                    tv_season,
+                    tv_episode,
                 ),
             )
             row = conn.execute(
@@ -178,6 +220,7 @@ class Store:
                 """
                 update media_requests
                 set updated_at = current_timestamp,
+                    last_search_at = current_timestamp,
                     status = ?,
                     best_result_id = ?,
                     best_title = ?,
@@ -207,6 +250,79 @@ class Store:
                 (request_id,),
             ).fetchone()
         return dict(row) if row else None
+
+    def mark_media_request_feed_checked(self, request_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update media_requests
+                set last_feed_checked_at = current_timestamp
+                where id = ?
+                """,
+                (request_id,),
+            )
+
+    def mark_media_request_feed_matched(self, request_id: int, title: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update media_requests
+                set last_feed_checked_at = current_timestamp,
+                    last_feed_matched_at = current_timestamp,
+                    last_feed_match_title = ?
+                where id = ?
+                """,
+                (title, request_id),
+            )
+
+    def record_feed_sync_run(
+        self,
+        *,
+        movies_seen: int,
+        tv_seen: int,
+        requests_checked: int,
+        matched: int,
+        updated: int,
+        grabbed: int,
+        grab_failed: int,
+        skipped: int,
+        errors: list[str],
+    ) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                insert into feed_sync_runs (
+                    movies_seen, tv_seen, requests_checked, matched, updated,
+                    grabbed, grab_failed, skipped, errors_json
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    movies_seen,
+                    tv_seen,
+                    requests_checked,
+                    matched,
+                    updated,
+                    grabbed,
+                    grab_failed,
+                    skipped,
+                    json.dumps(errors, ensure_ascii=False),
+                ),
+            )
+        return int(cursor.lastrowid)
+
+    def recent_feed_sync_runs(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select *
+                from feed_sync_runs
+                order by id desc
+                limit ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def set_media_request_status(self, request_id: int, status: str) -> dict[str, Any] | None:
         with self._connect() as conn:
