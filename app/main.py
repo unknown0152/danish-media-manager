@@ -41,7 +41,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.37.1")
+app = FastAPI(title="Danish Media Manager", version="0.38.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -74,6 +74,7 @@ def background_monitor_enabled(settings: Settings) -> bool:
 
 
 def run_background_monitor_cycle(settings: Settings) -> None:
+    request_store = Store(settings.database_path)
     if settings.seerr_sync_enabled and settings.seerr_api_key:
         try:
             sync_seerr_requests(
@@ -83,10 +84,14 @@ def run_background_monitor_cycle(settings: Settings) -> None:
                 settings=settings,
                 seerr_client=SeerrClient(settings),
                 di_client=DanishIntelligenceClient(settings),
-                prowlarr_client=ProwlarrClient(settings),
+                prowlarr_client=ProwlarrClient(
+                    settings,
+                    api_call_recorder=request_store.record_prowlarr_api_call,
+                    context="seerr_background",
+                ),
                 altmount_client=AltMountClient(settings),
                 arr_client=ArrClient(settings),
-                request_store=Store(settings.database_path),
+                request_store=request_store,
             )
         except Exception as exc:
             print(f"[DMM] Seerr background sync failed: {exc}", flush=True)
@@ -97,10 +102,14 @@ def run_background_monitor_cycle(settings: Settings) -> None:
                 feed_limit=settings.recent_feed_limit,
                 auto_grab=settings.seerr_auto_grab,
                 settings=settings,
-                prowlarr_client=ProwlarrClient(settings),
+                prowlarr_client=ProwlarrClient(
+                    settings,
+                    api_call_recorder=request_store.record_prowlarr_api_call,
+                    context="recent_feed_background",
+                ),
                 altmount_client=AltMountClient(settings),
                 arr_client=ArrClient(settings),
-                request_store=Store(settings.database_path),
+                request_store=request_store,
             )
         except Exception as exc:
             print(f"[DMM] Recent feed sync failed: {exc}", flush=True)
@@ -109,7 +118,7 @@ def run_background_monitor_cycle(settings: Settings) -> None:
             settings=settings,
             altmount_client=AltMountClient(settings),
             arr_client=ArrClient(settings),
-            request_store=Store(settings.database_path),
+            request_store=request_store,
         )
     except Exception as exc:
         print(f"[DMM] AltMount completion sync failed: {exc}", flush=True)
@@ -121,10 +130,14 @@ def run_background_monitor_cycle(settings: Settings) -> None:
                 settings=settings,
                 metadata_client=MetadataClient(settings),
                 di_client=DanishIntelligenceClient(settings),
-                prowlarr_client=ProwlarrClient(settings),
+                prowlarr_client=ProwlarrClient(
+                    settings,
+                    api_call_recorder=request_store.record_prowlarr_api_call,
+                    context="wanted_retry_background",
+                ),
                 altmount_client=AltMountClient(settings),
                 arr_client=ArrClient(settings),
-                request_store=Store(settings.database_path),
+                request_store=request_store,
             )
         except Exception as exc:
             print(f"[DMM] Wanted background search failed: {exc}", flush=True)
@@ -138,8 +151,15 @@ async def _background_monitor_worker() -> None:
         await asyncio.sleep(max(30, settings.seerr_sync_interval_seconds))
 
 
-def prowlarr(settings: Settings = Depends(get_settings)) -> ProwlarrClient:
-    return ProwlarrClient(settings)
+def store(settings: Settings = Depends(get_settings)) -> Store:
+    return Store(settings.database_path)
+
+
+def prowlarr(
+    settings: Settings = Depends(get_settings),
+    request_store: Store = Depends(store),
+) -> ProwlarrClient:
+    return ProwlarrClient(settings, api_call_recorder=request_store.record_prowlarr_api_call)
 
 
 def danish_intelligence(settings: Settings = Depends(get_settings)) -> DanishIntelligenceClient:
@@ -152,10 +172,6 @@ def altmount(settings: Settings = Depends(get_settings)) -> AltMountClient:
 
 def arr(settings: Settings = Depends(get_settings)) -> ArrClient:
     return ArrClient(settings)
-
-
-def store(settings: Settings = Depends(get_settings)) -> Store:
-    return Store(settings.database_path)
 
 
 def metadata(settings: Settings = Depends(get_settings)) -> MetadataClient:
@@ -212,7 +228,11 @@ def create_scored_request(
         releases = search_releases(
             search_request,
             di_client=di_client,
-            prowlarr_client=prowlarr_client,
+            prowlarr_client=_scoped_prowlarr(
+                prowlarr_client,
+                origin_source or "dmm_request",
+                request_id,
+            ),
         )
     except Exception as exc:
         request_store.set_media_request_status(request_id, "search_failed")
@@ -321,7 +341,7 @@ def rerun_stored_request_search(
         releases = search_releases(
             search_request,
             di_client=di_client,
-            prowlarr_client=prowlarr_client,
+            prowlarr_client=_scoped_prowlarr(prowlarr_client, "request_search", request_id),
         )
     except Exception as exc:
         request_store.set_media_request_status(request_id, "search_failed")
@@ -504,6 +524,17 @@ def search_releases(
     return prowlarr_client.search(request)
 
 
+def _scoped_prowlarr(
+    prowlarr_client: ProwlarrClient,
+    context: str,
+    request_id: int | None = None,
+) -> ProwlarrClient:
+    scoped = getattr(prowlarr_client, "scoped", None)
+    if callable(scoped):
+        return scoped(context, request_id)
+    return prowlarr_client
+
+
 def grab_cached_result(
     request: GrabRequest,
     *,
@@ -632,7 +663,7 @@ def retry_wanted_requests(
                 row,
                 metadata_client=metadata_client,
                 di_client=di_client,
-                prowlarr_client=prowlarr_client,
+                prowlarr_client=_scoped_prowlarr(prowlarr_client, "wanted_retry", request_id),
                 request_store=request_store,
             )
             result.requests.append(response.request)
@@ -696,7 +727,10 @@ def sync_recent_releases(
         if not media_rows:
             continue
         try:
-            recent = prowlarr_client.recent(media_type, limit=max(1, min(feed_limit, 500)))
+            recent = _scoped_prowlarr(prowlarr_client, "recent_feed_sync").recent(
+                media_type,
+                limit=max(1, min(feed_limit, 500)),
+            )
         except Exception as exc:
             result.errors.append(f"{media_type} recent feed failed: {exc}")
             continue
@@ -1017,7 +1051,7 @@ def status(
     return {
         "app": settings.app_name,
         "prowlarr_url": settings.prowlarr_url,
-        "prowlarr_ready": prowlarr_client.ready(),
+        "prowlarr_ready": _scoped_prowlarr(prowlarr_client, "status_ui").ready(),
         "altmount_url": settings.altmount_url,
         "altmount_ready": altmount_client.ready(),
     }
@@ -1037,7 +1071,7 @@ def search(
         releases = search_releases(
             search_request,
             di_client=di_client,
-            prowlarr_client=prowlarr_client,
+            prowlarr_client=_scoped_prowlarr(prowlarr_client, "manual_search"),
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -1415,7 +1449,10 @@ def targets(settings: Settings = Depends(get_settings)) -> dict[str, list[MediaT
 @app.get("/api/indexers")
 def indexers(prowlarr_client: ProwlarrClient = Depends(prowlarr)) -> list[dict[str, object]]:
     try:
-        return [indexer.model_dump() for indexer in prowlarr_client.indexers()]
+        return [
+            indexer.model_dump()
+            for indexer in _scoped_prowlarr(prowlarr_client, "indexer_ui").indexers()
+        ]
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1425,7 +1462,7 @@ def prowlarr_diagnostics(
     prowlarr_client: ProwlarrClient = Depends(prowlarr),
 ) -> ProwlarrDiagnostics:
     try:
-        return prowlarr_client.diagnostics()
+        return _scoped_prowlarr(prowlarr_client, "diagnostics_ui").diagnostics()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -1448,6 +1485,23 @@ def feed_runs(request_store: Store = Depends(store)) -> list[dict[str, object]]:
         normalized["errors"] = errors if isinstance(errors, list) else []
         runs.append(normalized)
     return runs
+
+
+@app.get("/api/debug/prowlarr-calls")
+def prowlarr_call_log(
+    limit: int = 200,
+    since_id: int | None = None,
+    request_store: Store = Depends(store),
+) -> dict[str, object]:
+    return {
+        "summary": request_store.prowlarr_api_call_summary(since_id=since_id),
+        "calls": request_store.recent_prowlarr_api_calls(limit=limit, since_id=since_id),
+    }
+
+
+@app.post("/api/debug/prowlarr-calls/reset")
+def reset_prowlarr_call_log(request_store: Store = Depends(store)) -> dict[str, int]:
+    return {"deleted": request_store.clear_prowlarr_api_calls()}
 
 
 def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:

@@ -45,6 +45,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Track AltMount grab IDs through queue/history completion and update monitored item state.
 - Trigger Radarr/Sonarr rescans when AltMount reports a grabbed item as completed.
 - Show per-search Prowlarr indexer result counts and best scores.
+- Track Prowlarr API call counts by workflow context for live API-use debugging.
 - Check whether AltMount import paths are visible and using symlinks instead of regular files.
 - Show active Prowlarr indexer failures and health warnings.
 - Show safe Prowlarr indexer diagnostics, including OldBoys-specific hints when Prowlarr marks every indexer failed.
@@ -89,8 +90,27 @@ POST /api/completions/sync
 GET  /api/downloads
 GET  /api/import-health
 GET  /api/prowlarr-diagnostics
+GET  /api/debug/prowlarr-calls
+POST /api/debug/prowlarr-calls/reset
 GET  /api/targets
 ```
+
+## Prowlarr API Call Debugging
+
+For live indexer API-use tests, reset the counter before adding requests in Seerr:
+
+```bash
+curl -fsS -X POST http://127.0.0.1:8088/api/debug/prowlarr-calls/reset
+```
+
+After adding films or TV shows, read the call summary:
+
+```bash
+curl -fsS http://127.0.0.1:8088/api/debug/prowlarr-calls | python3 -m json.tool
+```
+
+The summary groups calls by context, such as `seerr_background`, `recent_feed_sync`,
+`wanted_retry`, `manual_search`, `indexer_ui`, and `diagnostics_ui`.
 
 ## Run Locally
 

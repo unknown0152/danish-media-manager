@@ -1,4 +1,6 @@
 import hashlib
+import time
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -18,25 +20,60 @@ from app.quality import parse_quality
 from app.scoring import score_release
 from app.titlematch import match_title
 
+ApiCallRecorder = Callable[[dict[str, Any]], None]
+
 
 class ProwlarrClient:
-    def __init__(self, settings: Settings):
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        api_call_recorder: ApiCallRecorder | None = None,
+        context: str = "generic",
+        request_id: int | None = None,
+    ):
+        self.settings = settings
         self.base_url = settings.prowlarr_url.rstrip("/")
         self.api_key = settings.prowlarr_api_key
         self.timeout = settings.request_timeout_seconds
+        self.api_call_recorder = api_call_recorder
+        self.context = context
+        self.request_id = request_id
+
+    def scoped(self, context: str, request_id: int | None = None) -> "ProwlarrClient":
+        return ProwlarrClient(
+            self.settings,
+            api_call_recorder=self.api_call_recorder,
+            context=context,
+            request_id=request_id,
+        )
 
     def ready(self) -> bool:
         if not self.api_key:
             return False
+        started = time.perf_counter()
+        status_code: int | None = None
+        error: str | None = None
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 resp = client.get(
                     f"{self.base_url}/api/v1/system/status",
                     headers={"X-Api-Key": self.api_key},
                 )
+                status_code = resp.status_code
                 return resp.status_code == 200
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
+            error = _error_text(exc)
             return False
+        finally:
+            self._record_api_call(
+                operation="status",
+                endpoint="/api/v1/system/status",
+                method="GET",
+                started=started,
+                status_code=status_code,
+                error=error,
+            )
 
     def search(self, request: SearchRequest) -> list[Release]:
         if not self.api_key:
@@ -44,14 +81,37 @@ class ProwlarrClient:
 
         params = search_params(request)
 
+        started = time.perf_counter()
+        status_code: int | None = None
+        result_count: int | None = None
+        error: str | None = None
         with httpx.Client(timeout=self.timeout) as client:
-            resp = client.get(
-                f"{self.base_url}/api/v1/search",
-                params=params,
-                headers={"X-Api-Key": self.api_key},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = client.get(
+                    f"{self.base_url}/api/v1/search",
+                    params=params,
+                    headers={"X-Api-Key": self.api_key},
+                )
+                status_code = resp.status_code
+                resp.raise_for_status()
+                data = resp.json()
+                result_count = len(data) if isinstance(data, list) else None
+            except Exception as exc:
+                error = _error_text(exc)
+                raise
+            finally:
+                self._record_api_call(
+                    operation="active_search",
+                    endpoint="/api/v1/search",
+                    method="GET",
+                    media_type=request.media_type,
+                    query=request.query,
+                    limit=request.limit,
+                    started=started,
+                    status_code=status_code,
+                    result_count=result_count,
+                    error=error,
+                )
 
         if not isinstance(data, list):
             raise RuntimeError(f"Unexpected Prowlarr search response: {type(data).__name__}")
@@ -73,30 +133,74 @@ class ProwlarrClient:
         if not self.api_key:
             raise RuntimeError("PROWLARR_API_KEY is not set")
 
+        safe_limit = max(1, min(limit, 500))
+        started = time.perf_counter()
+        status_code: int | None = None
+        result_count: int | None = None
+        error: str | None = None
         with httpx.Client(timeout=self.timeout) as client:
-            resp = client.get(
-                f"{self.base_url}/api/v1/search",
-                params=recent_search_params(media_type, limit),
-                headers={"X-Api-Key": self.api_key},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = client.get(
+                    f"{self.base_url}/api/v1/search",
+                    params=recent_search_params(media_type, safe_limit),
+                    headers={"X-Api-Key": self.api_key},
+                )
+                status_code = resp.status_code
+                resp.raise_for_status()
+                data = resp.json()
+                result_count = len(data) if isinstance(data, list) else None
+            except Exception as exc:
+                error = _error_text(exc)
+                raise
+            finally:
+                self._record_api_call(
+                    operation="recent_feed",
+                    endpoint="/api/v1/search",
+                    method="GET",
+                    media_type=media_type,
+                    query="",
+                    limit=safe_limit,
+                    started=started,
+                    status_code=status_code,
+                    result_count=result_count,
+                    error=error,
+                )
 
         if not isinstance(data, list):
             raise RuntimeError(f"Unexpected Prowlarr recent response: {type(data).__name__}")
-        return [item for item in data if isinstance(item, dict)][: max(1, min(limit, 500))]
+        return [item for item in data if isinstance(item, dict)][:safe_limit]
 
     def indexers(self) -> list[IndexerStatus]:
         if not self.api_key:
             raise RuntimeError("PROWLARR_API_KEY is not set")
 
+        started = time.perf_counter()
+        status_code: int | None = None
+        result_count: int | None = None
+        error: str | None = None
         with httpx.Client(timeout=self.timeout) as client:
-            resp = client.get(
-                f"{self.base_url}/api/v1/indexer",
-                headers={"X-Api-Key": self.api_key},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = client.get(
+                    f"{self.base_url}/api/v1/indexer",
+                    headers={"X-Api-Key": self.api_key},
+                )
+                status_code = resp.status_code
+                resp.raise_for_status()
+                data = resp.json()
+                result_count = len(data) if isinstance(data, list) else None
+            except Exception as exc:
+                error = _error_text(exc)
+                raise
+            finally:
+                self._record_api_call(
+                    operation="indexer_list",
+                    endpoint="/api/v1/indexer",
+                    method="GET",
+                    started=started,
+                    status_code=status_code,
+                    result_count=result_count,
+                    error=error,
+                )
 
         if not isinstance(data, list):
             raise RuntimeError(f"Unexpected Prowlarr indexer response: {type(data).__name__}")
@@ -125,17 +229,74 @@ class ProwlarrClient:
         return diagnostics_from_payloads(indexers, statuses, health)
 
     def _get_list(self, path: str) -> list[dict[str, Any]]:
+        started = time.perf_counter()
+        status_code: int | None = None
+        result_count: int | None = None
+        error: str | None = None
         with httpx.Client(timeout=self.timeout) as client:
-            resp = client.get(
-                f"{self.base_url}{path}",
-                headers={"X-Api-Key": self.api_key},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = client.get(
+                    f"{self.base_url}{path}",
+                    headers={"X-Api-Key": self.api_key},
+                )
+                status_code = resp.status_code
+                resp.raise_for_status()
+                data = resp.json()
+                result_count = len(data) if isinstance(data, list) else None
+            except Exception as exc:
+                error = _error_text(exc)
+                raise
+            finally:
+                self._record_api_call(
+                    operation="diagnostics",
+                    endpoint=path,
+                    method="GET",
+                    started=started,
+                    status_code=status_code,
+                    result_count=result_count,
+                    error=error,
+                )
 
         if not isinstance(data, list):
             raise RuntimeError(f"Unexpected Prowlarr response for {path}: {type(data).__name__}")
         return [item for item in data if isinstance(item, dict)]
+
+    def _record_api_call(
+        self,
+        *,
+        operation: str,
+        endpoint: str,
+        method: str,
+        started: float,
+        media_type: str | None = None,
+        query: str | None = None,
+        limit: int | None = None,
+        status_code: int | None = None,
+        result_count: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        if not self.api_call_recorder:
+            return
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        try:
+            self.api_call_recorder(
+                {
+                    "context": self.context,
+                    "operation": operation,
+                    "endpoint": endpoint,
+                    "method": method,
+                    "media_type": media_type,
+                    "query": query,
+                    "limit": limit,
+                    "request_id": self.request_id,
+                    "status_code": status_code,
+                    "result_count": result_count,
+                    "duration_ms": elapsed_ms,
+                    "error": error,
+                }
+            )
+        except Exception:
+            pass
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -150,6 +311,13 @@ def _str_or_none(value: Any) -> str | None:
         return None
     text = str(value)
     return text or None
+
+
+def _error_text(exc: Exception) -> str:
+    text = str(exc)
+    if not text:
+        text = type(exc).__name__
+    return text[:500]
 
 
 def release_from_item(

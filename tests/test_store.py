@@ -206,3 +206,48 @@ def test_store_migrates_old_grabs_table_without_non_constant_defaults(tmp_path) 
 
     assert grabs[0]["status"] == "grabbed"
     assert grabs[0]["updated_at"] is not None
+
+
+def test_store_records_and_resets_prowlarr_api_call_summary(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    first_id = store.record_prowlarr_api_call(
+        {
+            "context": "seerr_sync",
+            "operation": "active_search",
+            "endpoint": "/api/v1/search",
+            "method": "GET",
+            "media_type": "movie",
+            "query": "The Batman 2022",
+            "request_id": 12,
+            "limit": 100,
+            "status_code": 200,
+            "result_count": 77,
+            "duration_ms": 42,
+        }
+    )
+    store.record_prowlarr_api_call(
+        {
+            "context": "recent_feed_sync",
+            "operation": "recent_feed",
+            "endpoint": "/api/v1/search",
+            "method": "GET",
+            "media_type": "tv",
+            "limit": 500,
+            "status_code": 200,
+            "result_count": 500,
+            "duration_ms": 101,
+        }
+    )
+
+    summary = store.prowlarr_api_call_summary()
+    recent_only = store.prowlarr_api_call_summary(since_id=first_id)
+    calls = store.recent_prowlarr_api_calls(limit=10)
+
+    assert summary["total"] == 2
+    assert summary["active_search"] == 1
+    assert summary["recent_feed"] == 1
+    assert summary["results"] == 577
+    assert recent_only["total"] == 1
+    assert calls[0]["context"] == "recent_feed_sync"
+    assert store.clear_prowlarr_api_calls() == 2
+    assert store.prowlarr_api_call_summary()["total"] == 0

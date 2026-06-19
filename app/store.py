@@ -169,6 +169,26 @@ class Store:
                 )
                 """
             )
+            conn.execute(
+                """
+                create table if not exists prowlarr_api_calls (
+                    id integer primary key autoincrement,
+                    created_at text not null default current_timestamp,
+                    context text not null,
+                    operation text not null,
+                    endpoint text not null,
+                    method text not null,
+                    media_type text,
+                    query text,
+                    request_id integer,
+                    limit_value integer,
+                    status_code integer,
+                    result_count integer,
+                    duration_ms integer,
+                    error text
+                )
+                """
+            )
             self._ensure_column(conn, "release_cache", "request_id", "integer")
             self._ensure_column(
                 conn,
@@ -194,6 +214,7 @@ class Store:
             self._ensure_column(conn, "media_requests", "last_feed_matched_at", "text")
             self._ensure_column(conn, "media_requests", "last_feed_match_title", "text")
             self._ensure_column(conn, "media_requests", "last_search_at", "text")
+            self._ensure_column(conn, "prowlarr_api_calls", "request_id", "integer")
             self._backfill_monitored_items(conn)
 
     def _ensure_column(
@@ -834,6 +855,128 @@ class Store:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def record_prowlarr_api_call(self, call: dict[str, Any]) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                insert into prowlarr_api_calls (
+                    context, operation, endpoint, method, media_type, query,
+                    request_id, limit_value, status_code, result_count, duration_ms, error
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(call.get("context") or "generic"),
+                    str(call.get("operation") or "unknown"),
+                    str(call.get("endpoint") or "unknown"),
+                    str(call.get("method") or "GET"),
+                    _str_or_none(call.get("media_type")),
+                    _str_or_none(call.get("query")),
+                    _int_or_none(call.get("request_id")),
+                    _int_or_none(call.get("limit")),
+                    _int_or_none(call.get("status_code")),
+                    _int_or_none(call.get("result_count")),
+                    _int_or_none(call.get("duration_ms")),
+                    _str_or_none(call.get("error")),
+                ),
+            )
+        return int(cursor.lastrowid)
+
+    def recent_prowlarr_api_calls(self, limit: int = 200, since_id: int | None = None) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(limit, 1000))
+        with self._connect() as conn:
+            if since_id is None:
+                rows = conn.execute(
+                    """
+                    select *
+                    from prowlarr_api_calls
+                    order by id desc
+                    limit ?
+                    """,
+                    (safe_limit,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    select *
+                    from prowlarr_api_calls
+                    where id > ?
+                    order by id desc
+                    limit ?
+                    """,
+                    (since_id, safe_limit),
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    def prowlarr_api_call_summary(self, since_id: int | None = None) -> dict[str, Any]:
+        where = "where id > ?" if since_id is not None else ""
+        params: tuple[int, ...] = (since_id,) if since_id is not None else ()
+        with self._connect() as conn:
+            totals = conn.execute(
+                f"""
+                select
+                    count(*) as total,
+                    coalesce(sum(case when error is not null then 1 else 0 end), 0) as failed,
+                    coalesce(sum(case when operation = 'active_search' then 1 else 0 end), 0) as active_search,
+                    coalesce(sum(case when operation = 'recent_feed' then 1 else 0 end), 0) as recent_feed,
+                    coalesce(sum(result_count), 0) as results,
+                    max(id) as max_id
+                from prowlarr_api_calls
+                {where}
+                """,
+                params,
+            ).fetchone()
+            by_context = conn.execute(
+                f"""
+                select context, count(*) as calls, coalesce(sum(result_count), 0) as results
+                from prowlarr_api_calls
+                {where}
+                group by context
+                order by calls desc, context asc
+                """,
+                params,
+            ).fetchall()
+            by_operation = conn.execute(
+                f"""
+                select operation, count(*) as calls, coalesce(sum(result_count), 0) as results
+                from prowlarr_api_calls
+                {where}
+                group by operation
+                order by calls desc, operation asc
+                """,
+                params,
+            ).fetchall()
+            by_endpoint = conn.execute(
+                f"""
+                select endpoint, count(*) as calls, coalesce(sum(result_count), 0) as results
+                from prowlarr_api_calls
+                {where}
+                group by endpoint
+                order by calls desc, endpoint asc
+                """,
+                params,
+            ).fetchall()
+        totals_dict = dict(totals) if totals else {}
+        return {
+            "since_id": since_id,
+            "max_id": totals_dict.get("max_id"),
+            "total": totals_dict.get("total", 0),
+            "failed": totals_dict.get("failed", 0),
+            "active_search": totals_dict.get("active_search", 0),
+            "recent_feed": totals_dict.get("recent_feed", 0),
+            "results": totals_dict.get("results", 0),
+            "by_context": [dict(row) for row in by_context],
+            "by_operation": [dict(row) for row in by_operation],
+            "by_endpoint": [dict(row) for row in by_endpoint],
+        }
+
+    def clear_prowlarr_api_calls(self) -> int:
+        with self._connect() as conn:
+            row = conn.execute("select count(*) as count from prowlarr_api_calls").fetchone()
+            deleted = int(row["count"]) if row else 0
+            conn.execute("delete from prowlarr_api_calls")
+        return deleted
+
 
 def _download_identity(response: Any) -> tuple[str | None, str | None]:
     if not isinstance(response, dict):
@@ -856,3 +999,10 @@ def _str_or_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
