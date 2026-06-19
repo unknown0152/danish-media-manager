@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     seerr_auto_grab: bool = Field(default=True, alias="SEERR_AUTO_GRAB")
     wanted_search_enabled: bool = Field(default=True, alias="WANTED_SEARCH_ENABLED")
     wanted_search_max_per_cycle: int = Field(default=10, alias="WANTED_SEARCH_MAX_PER_CYCLE")
+    recent_feed_sync_enabled: bool = Field(default=True, alias="RECENT_FEED_SYNC_ENABLED")
+    recent_feed_limit: int = Field(default=500, alias="RECENT_FEED_LIMIT")
+    monitored_requests_max_per_cycle: int = Field(
+        default=100,
+        alias="MONITORED_REQUESTS_MAX_PER_CYCLE",
+    )
 
     altmount_url: str = Field(
         default="http://danish-intelligence:9699/altmount",

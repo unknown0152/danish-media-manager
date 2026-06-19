@@ -169,6 +169,17 @@ class WantedRetryResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class FeedSyncResult(BaseModel):
+    movies_seen: int = 0
+    tv_seen: int = 0
+    matched: int = 0
+    updated: int = 0
+    grabbed: int = 0
+    grab_failed: int = 0
+    skipped: int = 0
+    errors: list[str] = Field(default_factory=list)
+
+
 class GrabResponse(BaseModel):
     ok: bool
     message: str

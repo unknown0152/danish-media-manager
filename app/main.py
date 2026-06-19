@@ -15,6 +15,7 @@ from app.import_health import check_import_health
 from app.metadata import MetadataClient
 from app.models import (
     DownloadStatus,
+    FeedSyncResult,
     GrabRequest,
     GrabResponse,
     ImportHealth,
@@ -32,12 +33,12 @@ from app.models import (
     SeerrSyncResult,
     WantedRetryResult,
 )
-from app.prowlarr import ProwlarrClient
+from app.prowlarr import ProwlarrClient, release_from_item, release_sort_key
 from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.31.0")
+app = FastAPI(title="Danish Media Manager", version="0.32.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -46,29 +47,31 @@ WANTED_RETRY_STATUSES = {"no_results", "search_failed", "grab_failed"}
 
 
 @app.on_event("startup")
-async def start_seerr_sync_worker() -> None:
+async def start_background_monitor_worker() -> None:
     settings = get_settings()
-    if not settings.seerr_sync_enabled or not settings.seerr_api_key:
+    if not background_monitor_enabled(settings):
         return
-    app.state.seerr_sync_task = asyncio.create_task(_seerr_sync_worker())
+    app.state.background_monitor_task = asyncio.create_task(_background_monitor_worker())
 
 
 @app.on_event("shutdown")
-async def stop_seerr_sync_worker() -> None:
-    task = getattr(app.state, "seerr_sync_task", None)
+async def stop_background_monitor_worker() -> None:
+    task = getattr(app.state, "background_monitor_task", None)
     if task:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
 
-async def _seerr_sync_worker() -> None:
-    await asyncio.sleep(20)
-    while True:
-        settings = get_settings()
+def background_monitor_enabled(settings: Settings) -> bool:
+    seerr_ready = settings.seerr_sync_enabled and bool(settings.seerr_api_key)
+    return seerr_ready or settings.recent_feed_sync_enabled or settings.wanted_search_enabled
+
+
+def run_background_monitor_cycle(settings: Settings) -> None:
+    if settings.seerr_sync_enabled and settings.seerr_api_key:
         try:
-            await asyncio.to_thread(
-                sync_seerr_requests,
+            sync_seerr_requests(
                 take=20,
                 filter_name="all",
                 auto_grab=settings.seerr_auto_grab,
@@ -80,21 +83,44 @@ async def _seerr_sync_worker() -> None:
                 arr_client=ArrClient(settings),
                 request_store=Store(settings.database_path),
             )
-            if settings.wanted_search_enabled:
-                await asyncio.to_thread(
-                    retry_wanted_requests,
-                    limit=settings.wanted_search_max_per_cycle,
-                    auto_grab=settings.seerr_auto_grab,
-                    settings=settings,
-                    metadata_client=MetadataClient(settings),
-                    di_client=DanishIntelligenceClient(settings),
-                    prowlarr_client=ProwlarrClient(settings),
-                    altmount_client=AltMountClient(settings),
-                    arr_client=ArrClient(settings),
-                    request_store=Store(settings.database_path),
-                )
         except Exception as exc:
             print(f"[DMM] Seerr background sync failed: {exc}", flush=True)
+    if settings.recent_feed_sync_enabled:
+        try:
+            sync_recent_releases(
+                limit=settings.monitored_requests_max_per_cycle,
+                feed_limit=settings.recent_feed_limit,
+                auto_grab=settings.seerr_auto_grab,
+                settings=settings,
+                prowlarr_client=ProwlarrClient(settings),
+                altmount_client=AltMountClient(settings),
+                arr_client=ArrClient(settings),
+                request_store=Store(settings.database_path),
+            )
+        except Exception as exc:
+            print(f"[DMM] Recent feed sync failed: {exc}", flush=True)
+    if settings.wanted_search_enabled:
+        try:
+            retry_wanted_requests(
+                limit=settings.wanted_search_max_per_cycle,
+                auto_grab=settings.seerr_auto_grab,
+                settings=settings,
+                metadata_client=MetadataClient(settings),
+                di_client=DanishIntelligenceClient(settings),
+                prowlarr_client=ProwlarrClient(settings),
+                altmount_client=AltMountClient(settings),
+                arr_client=ArrClient(settings),
+                request_store=Store(settings.database_path),
+            )
+        except Exception as exc:
+            print(f"[DMM] Wanted background search failed: {exc}", flush=True)
+
+
+async def _background_monitor_worker() -> None:
+    await asyncio.sleep(20)
+    while True:
+        settings = get_settings()
+        await asyncio.to_thread(run_background_monitor_cycle, settings)
         await asyncio.sleep(max(30, settings.seerr_sync_interval_seconds))
 
 
@@ -538,6 +564,130 @@ def retry_wanted_requests(
     return result
 
 
+def sync_recent_releases(
+    *,
+    limit: int,
+    feed_limit: int,
+    auto_grab: bool,
+    settings: Settings,
+    prowlarr_client: ProwlarrClient,
+    altmount_client: AltMountClient,
+    arr_client: ArrClient,
+    request_store: Store,
+) -> FeedSyncResult:
+    result = FeedSyncResult()
+    rows = request_store.monitored_media_requests(limit=max(1, min(limit, 500)))
+    by_type: dict[str, list[dict]] = {"movie": [], "tv": []}
+    for row in rows:
+        media_type = str(row.get("media_type") or "")
+        if media_type in by_type:
+            by_type[media_type].append(row)
+        else:
+            result.skipped += 1
+
+    recent_by_type: dict[str, list[dict[str, object]]] = {}
+    for media_type, media_rows in by_type.items():
+        if not media_rows:
+            continue
+        try:
+            recent = prowlarr_client.recent(media_type, limit=max(1, min(feed_limit, 500)))
+        except Exception as exc:
+            result.errors.append(f"{media_type} recent feed failed: {exc}")
+            continue
+        recent_by_type[media_type] = recent
+        if media_type == "movie":
+            result.movies_seen = len(recent)
+        else:
+            result.tv_seen = len(recent)
+
+    for media_type, media_rows in by_type.items():
+        recent_items = recent_by_type.get(media_type, [])
+        if not recent_items:
+            result.skipped += len(media_rows)
+            continue
+        for row in media_rows:
+            request_id = int(row["id"])
+            try:
+                metadata_result = _metadata_from_row(row)
+                query = _feed_match_query(row, metadata_result)
+                min_resolution = str(row.get("min_resolution") or "any")
+                expected_year = metadata_result.year if metadata_result else None
+                releases = []
+                for item in recent_items:
+                    release = release_from_item(
+                        item,
+                        query,
+                        min_resolution,
+                        expected_year,
+                    )
+                    if _feed_title_candidate(release):
+                        releases.append(release)
+                releases.sort(key=release_sort_key, reverse=True)
+                best = best_release(releases)
+                if not best:
+                    result.skipped += 1
+                    continue
+                result.matched += 1
+                search_response = build_search_response(
+                    query=str(row["query"]),
+                    media_type=media_type,
+                    releases=releases,
+                    request_store=request_store,
+                    metadata_result=metadata_result,
+                    request_id=request_id,
+                )
+                updated = request_store.update_media_request_search(
+                    request_id,
+                    status="ready",
+                    best_result_id=best.result_id,
+                    best_title=best.title,
+                    best_score=best.score.score,
+                    total=search_response.total,
+                    accepted=search_response.accepted,
+                    rejected=search_response.rejected,
+                )
+                if not updated:
+                    result.errors.append(f"Request {request_id}: disappeared during feed sync")
+                    continue
+                result.updated += 1
+                if not auto_grab:
+                    continue
+                target = target_for_path(settings, media_type, _str_or_none(updated.get("target_path")))
+                metadata_result = metadata_result or _metadata_from_row(updated)
+                if not target or not metadata_result:
+                    result.grab_failed += 1
+                    result.errors.append(f"Request {request_id}: missing target or metadata")
+                    continue
+                auto_grab_seerr_request(
+                    row=updated,
+                    media_type=media_type,
+                    target=target,
+                    metadata_result=metadata_result,
+                    settings=settings,
+                    altmount_client=altmount_client,
+                    arr_client=arr_client,
+                    request_store=request_store,
+                )
+                result.grabbed += 1
+            except Exception as exc:
+                result.errors.append(f"Request {request_id}: {exc}")
+    return result
+
+
+def _feed_match_query(row: dict[str, object], metadata_result: MetadataResult | None) -> str:
+    if metadata_result:
+        return metadata_result.title
+    return str(row.get("query") or "")
+
+
+def _feed_title_candidate(release: Release) -> bool:
+    if not release.title_match:
+        return False
+    if release.title_match.year_matches is False:
+        return False
+    return release.title_match.token_overlap >= 0.6
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse("app/static/index.html")
@@ -687,6 +837,29 @@ def retry_wanted_now(
         settings=settings,
         metadata_client=metadata_client,
         di_client=di_client,
+        prowlarr_client=prowlarr_client,
+        altmount_client=altmount_client,
+        arr_client=arr_client,
+        request_store=request_store,
+    )
+
+
+@app.post("/api/feed/sync", response_model=FeedSyncResult)
+def sync_recent_feed_now(
+    limit: int = 100,
+    feed_limit: int | None = None,
+    auto_grab: bool | None = None,
+    settings: Settings = Depends(get_settings),
+    prowlarr_client: ProwlarrClient = Depends(prowlarr),
+    altmount_client: AltMountClient = Depends(altmount),
+    arr_client: ArrClient = Depends(arr),
+    request_store: Store = Depends(store),
+) -> FeedSyncResult:
+    return sync_recent_releases(
+        limit=limit,
+        feed_limit=settings.recent_feed_limit if feed_limit is None else feed_limit,
+        auto_grab=settings.seerr_auto_grab if auto_grab is None else auto_grab,
+        settings=settings,
         prowlarr_client=prowlarr_client,
         altmount_client=altmount_client,
         arr_client=arr_client,

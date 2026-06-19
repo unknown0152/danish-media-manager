@@ -69,6 +69,23 @@ class ProwlarrClient:
         releases.sort(key=release_sort_key, reverse=True)
         return releases
 
+    def recent(self, media_type: str, limit: int = 500) -> list[dict[str, Any]]:
+        if not self.api_key:
+            raise RuntimeError("PROWLARR_API_KEY is not set")
+
+        with httpx.Client(timeout=self.timeout) as client:
+            resp = client.get(
+                f"{self.base_url}/api/v1/search",
+                params=recent_search_params(media_type, limit),
+                headers={"X-Api-Key": self.api_key},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        if not isinstance(data, list):
+            raise RuntimeError(f"Unexpected Prowlarr recent response: {type(data).__name__}")
+        return [item for item in data if isinstance(item, dict)][: max(1, min(limit, 500))]
+
     def indexers(self) -> list[IndexerStatus]:
         if not self.api_key:
             raise RuntimeError("PROWLARR_API_KEY is not set")
@@ -195,6 +212,23 @@ def search_params(request: SearchRequest) -> dict[str, Any]:
         "type": request.media_type,
         "limit": request.limit,
         "categories": "2000" if request.media_type == "movie" else "5000",
+    }
+
+
+def recent_search_params(media_type: str, limit: int) -> dict[str, Any]:
+    if media_type == "movie":
+        search_type = "movie"
+        category = "2000"
+    elif media_type == "tv":
+        search_type = "tvsearch"
+        category = "5000"
+    else:
+        raise ValueError(f"Unsupported media type for recent feed: {media_type}")
+    return {
+        "query": "",
+        "type": search_type,
+        "limit": max(1, min(limit, 500)),
+        "categories": category,
     }
 
 

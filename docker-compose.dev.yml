@@ -8,6 +8,11 @@ services:
       ALTMOUNT_URL: http://danish-intelligence:9699/altmount
       ALTMOUNT_API_KEY: ${ALTMOUNT_API_KEY:?set ALTMOUNT_API_KEY}
       DATABASE_PATH: /data/danish-media-manager.db
+      SEERR_AUTO_GRAB: "false"
+      RECENT_FEED_SYNC_ENABLED: "true"
+      RECENT_FEED_LIMIT: "500"
+      WANTED_SEARCH_ENABLED: "true"
+      WANTED_SEARCH_MAX_PER_CYCLE: "10"
     volumes:
       - ./data:/data
     networks:
@@ -18,4 +23,3 @@ services:
 networks:
   media-stack:
     external: true
-

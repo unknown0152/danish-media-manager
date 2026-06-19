@@ -1,5 +1,5 @@
 from app.models import IndexerStatus, SearchRequest
-from app.prowlarr import diagnostics_from_payloads, search_params
+from app.prowlarr import diagnostics_from_payloads, recent_search_params, search_params
 
 
 def test_diagnostics_map_indexer_status_to_safe_names() -> None:
@@ -63,3 +63,21 @@ def test_search_params_include_subcategories_but_not_arr_ids() -> None:
 
     assert "tvdbId" not in tv_params
     assert tv_params["categories"] == "5000"
+
+
+def test_recent_search_params_use_arr_style_feed_types() -> None:
+    movie_params = recent_search_params("movie", 900)
+    tv_params = recent_search_params("tv", 250)
+
+    assert movie_params == {
+        "query": "",
+        "type": "movie",
+        "limit": 500,
+        "categories": "2000",
+    }
+    assert tv_params == {
+        "query": "",
+        "type": "tvsearch",
+        "limit": 250,
+        "categories": "5000",
+    }
