@@ -80,6 +80,24 @@ class Store:
             )
             conn.execute(
                 """
+                update grabs
+                set request_id = (
+                    select release_cache.request_id
+                    from release_cache
+                    where release_cache.result_id = grabs.result_id
+                )
+                where request_id is null
+                  and result_id is not null
+                  and exists (
+                    select 1
+                    from release_cache
+                    where release_cache.result_id = grabs.result_id
+                      and release_cache.request_id is not null
+                  )
+                """
+            )
+            conn.execute(
+                """
                 create table if not exists media_requests (
                     id integer primary key autoincrement,
                     created_at text not null default current_timestamp,

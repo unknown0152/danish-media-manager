@@ -41,7 +41,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.37.0")
+app = FastAPI(title="Danish Media Manager", version="0.37.1")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
