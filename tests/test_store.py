@@ -251,3 +251,23 @@ def test_store_records_and_resets_prowlarr_api_call_summary(tmp_path) -> None:
     assert calls[0]["context"] == "recent_feed_sync"
     assert store.clear_prowlarr_api_calls() == 2
     assert store.prowlarr_api_call_summary()["total"] == 0
+
+
+def test_store_persists_network_debug_marker(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+
+    marker = store.set_debug_marker(
+        "network",
+        dmm_prowlarr_call_id=12,
+        prowlarr_history_id=34,
+    )
+    updated = store.set_debug_marker(
+        "network",
+        dmm_prowlarr_call_id=56,
+        prowlarr_history_id=78,
+    )
+
+    assert marker["name"] == "network"
+    assert updated["dmm_prowlarr_call_id"] == 56
+    assert updated["prowlarr_history_id"] == 78
+    assert store.get_debug_marker("network")["prowlarr_history_id"] == 78

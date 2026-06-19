@@ -189,6 +189,16 @@ class Store:
                 )
                 """
             )
+            conn.execute(
+                """
+                create table if not exists debug_markers (
+                    name text primary key,
+                    created_at text not null default current_timestamp,
+                    dmm_prowlarr_call_id integer,
+                    prowlarr_history_id integer
+                )
+                """
+            )
             self._ensure_column(conn, "release_cache", "request_id", "integer")
             self._ensure_column(
                 conn,
@@ -976,6 +986,46 @@ class Store:
             deleted = int(row["count"]) if row else 0
             conn.execute("delete from prowlarr_api_calls")
         return deleted
+
+    def max_prowlarr_api_call_id(self) -> int | None:
+        with self._connect() as conn:
+            row = conn.execute("select max(id) as id from prowlarr_api_calls").fetchone()
+        return _int_or_none(row["id"]) if row else None
+
+    def set_debug_marker(
+        self,
+        name: str,
+        *,
+        dmm_prowlarr_call_id: int | None,
+        prowlarr_history_id: int | None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                insert into debug_markers (
+                    name, created_at, dmm_prowlarr_call_id, prowlarr_history_id
+                )
+                values (?, current_timestamp, ?, ?)
+                on conflict(name) do update set
+                    created_at = current_timestamp,
+                    dmm_prowlarr_call_id = excluded.dmm_prowlarr_call_id,
+                    prowlarr_history_id = excluded.prowlarr_history_id
+                """,
+                (name, dmm_prowlarr_call_id, prowlarr_history_id),
+            )
+            row = conn.execute(
+                "select * from debug_markers where name = ?",
+                (name,),
+            ).fetchone()
+        return dict(row) if row else {}
+
+    def get_debug_marker(self, name: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "select * from debug_markers where name = ?",
+                (name,),
+            ).fetchone()
+        return dict(row) if row else None
 
 
 def _download_identity(response: Any) -> tuple[str | None, str | None]:

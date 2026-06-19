@@ -92,25 +92,37 @@ GET  /api/import-health
 GET  /api/prowlarr-diagnostics
 GET  /api/debug/prowlarr-calls
 POST /api/debug/prowlarr-calls/reset
+GET  /api/debug/network
+POST /api/debug/network/reset
 GET  /api/targets
 ```
 
-## Prowlarr API Call Debugging
+## Network Analyzer
 
-For live indexer API-use tests, reset the counter before adding requests in Seerr:
-
-```bash
-curl -fsS -X POST http://127.0.0.1:8088/api/debug/prowlarr-calls/reset
-```
-
-After adding films or TV shows, read the call summary:
+For live indexer API-use tests, reset the network marker before adding requests in Seerr:
 
 ```bash
-curl -fsS http://127.0.0.1:8088/api/debug/prowlarr-calls | python3 -m json.tool
+curl -fsS -X POST http://127.0.0.1:8088/api/debug/network/reset
 ```
 
-The summary groups calls by context, such as `seerr_background`, `recent_feed_sync`,
-`wanted_retry`, `manual_search`, `indexer_ui`, and `diagnostics_ui`.
+After adding films or TV shows, read the analyzer:
+
+```bash
+curl -fsS http://127.0.0.1:8088/api/debug/network | python3 -m json.tool
+```
+
+The analyzer combines DMM's direct Prowlarr calls with Prowlarr history fanout, so it shows
+the real upstream indexer/provider call count. It groups DMM calls by context, such as
+`seerr_background`, `recent_feed_sync`, `wanted_retry`, and `manual_search`, and groups
+upstream calls by indexer, media type, query type, result count, elapsed time, failures, and
+cached calls. It intentionally omits provider URLs and API keys.
+
+For diagnostics, debug responses show search query text by default. Set
+`DEBUG_REDACT_QUERIES=true` to replace query fields with `<redacted>`.
+
+Seerr import can stay frequent with `SEERR_SYNC_INTERVAL_SECONDS=60`. The expensive recent
+feed fanout is separately throttled by `RECENT_FEED_SYNC_INTERVAL_SECONDS`, default `900`
+seconds, so it does not hit every enabled indexer every minute.
 
 ## Run Locally
 

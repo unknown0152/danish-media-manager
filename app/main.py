@@ -2,6 +2,8 @@ import asyncio
 import contextlib
 import json
 import re
+import time
+from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -41,7 +43,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.38.0")
+app = FastAPI(title="Danish Media Manager", version="0.39.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -73,7 +75,7 @@ def background_monitor_enabled(settings: Settings) -> bool:
     return seerr_ready or settings.recent_feed_sync_enabled or settings.wanted_search_enabled
 
 
-def run_background_monitor_cycle(settings: Settings) -> None:
+def run_background_monitor_cycle(settings: Settings, *, run_recent_feed: bool = True) -> None:
     request_store = Store(settings.database_path)
     if settings.seerr_sync_enabled and settings.seerr_api_key:
         try:
@@ -95,7 +97,7 @@ def run_background_monitor_cycle(settings: Settings) -> None:
             )
         except Exception as exc:
             print(f"[DMM] Seerr background sync failed: {exc}", flush=True)
-    if settings.recent_feed_sync_enabled:
+    if settings.recent_feed_sync_enabled and run_recent_feed:
         try:
             sync_recent_releases(
                 limit=settings.monitored_requests_max_per_cycle,
@@ -145,9 +147,22 @@ def run_background_monitor_cycle(settings: Settings) -> None:
 
 async def _background_monitor_worker() -> None:
     await asyncio.sleep(20)
+    last_recent_feed_sync_at = 0.0
     while True:
         settings = get_settings()
-        await asyncio.to_thread(run_background_monitor_cycle, settings)
+        now = time.monotonic()
+        recent_feed_due = (
+            settings.recent_feed_sync_enabled
+            and now - last_recent_feed_sync_at
+            >= max(60, settings.recent_feed_sync_interval_seconds)
+        )
+        await asyncio.to_thread(
+            run_background_monitor_cycle,
+            settings,
+            run_recent_feed=recent_feed_due,
+        )
+        if recent_feed_due:
+            last_recent_feed_sync_at = now
         await asyncio.sleep(max(30, settings.seerr_sync_interval_seconds))
 
 
@@ -1491,17 +1506,187 @@ def feed_runs(request_store: Store = Depends(store)) -> list[dict[str, object]]:
 def prowlarr_call_log(
     limit: int = 200,
     since_id: int | None = None,
+    settings: Settings = Depends(get_settings),
     request_store: Store = Depends(store),
 ) -> dict[str, object]:
+    calls = request_store.recent_prowlarr_api_calls(limit=limit, since_id=since_id)
+    if settings.debug_redact_queries:
+        _redact_query_fields(calls)
     return {
         "summary": request_store.prowlarr_api_call_summary(since_id=since_id),
-        "calls": request_store.recent_prowlarr_api_calls(limit=limit, since_id=since_id),
+        "calls": calls,
     }
 
 
 @app.post("/api/debug/prowlarr-calls/reset")
 def reset_prowlarr_call_log(request_store: Store = Depends(store)) -> dict[str, int]:
     return {"deleted": request_store.clear_prowlarr_api_calls()}
+
+
+@app.post("/api/debug/network/reset")
+def reset_network_analyzer(
+    settings: Settings = Depends(get_settings),
+    request_store: Store = Depends(store),
+) -> dict[str, object]:
+    request_store.clear_prowlarr_api_calls()
+    prowlarr_client = ProwlarrClient(settings)
+    history_id = prowlarr_client.latest_history_id()
+    marker = request_store.set_debug_marker(
+        "network",
+        dmm_prowlarr_call_id=request_store.max_prowlarr_api_call_id(),
+        prowlarr_history_id=history_id,
+    )
+    return {"marker": marker}
+
+
+@app.get("/api/debug/network")
+def network_analyzer(
+    limit: int = 1000,
+    settings: Settings = Depends(get_settings),
+    request_store: Store = Depends(store),
+) -> dict[str, object]:
+    marker = request_store.get_debug_marker("network") or {}
+    dmm_since_id = _int_or_none(marker.get("dmm_prowlarr_call_id"))
+    prowlarr_history_since_id = _int_or_none(marker.get("prowlarr_history_id"))
+    prowlarr_client = ProwlarrClient(settings)
+    history = prowlarr_client.history(page_size=max(1, min(limit, 1000)))
+    indexer_names = {
+        item.id: item.name
+        for item in prowlarr_client.indexers()
+        if item.id is not None
+    }
+    records = _network_history_records(
+        history,
+        indexer_names=indexer_names,
+        since_id=prowlarr_history_since_id,
+    )
+    if settings.debug_redact_queries:
+        _redact_query_fields(records)
+    dmm_summary = request_store.prowlarr_api_call_summary(since_id=dmm_since_id)
+    return {
+        "marker": marker,
+        "dmm_to_prowlarr": dmm_summary,
+        "prowlarr_to_indexers": _network_history_summary(records),
+        "recent_upstream_records": records[:100],
+    }
+
+
+def _network_history_records(
+    history: dict[str, Any],
+    *,
+    indexer_names: dict[int, str],
+    since_id: int | None,
+) -> list[dict[str, object]]:
+    raw_records = history.get("records")
+    if not isinstance(raw_records, list):
+        return []
+    records: list[dict[str, object]] = []
+    for item in raw_records:
+        if not isinstance(item, dict):
+            continue
+        record_id = _int_or_none(item.get("id"))
+        if since_id is not None and record_id is not None and record_id <= since_id:
+            continue
+        data = item.get("data") if isinstance(item.get("data"), dict) else {}
+        if data.get("host") != "danish-media-manager":
+            continue
+        indexer_id = _int_or_none(item.get("indexerId"))
+        records.append(
+            {
+                "id": record_id,
+                "date": item.get("date"),
+                "indexer_id": indexer_id,
+                "indexer": indexer_names.get(indexer_id or -1, f"Indexer {indexer_id}"),
+                "event_type": item.get("eventType"),
+                "successful": item.get("successful") if isinstance(item.get("successful"), bool) else None,
+                "media_type": _media_type_from_categories(_str_or_none(data.get("categories"))),
+                "categories": _str_or_none(data.get("categories")),
+                "query_type": _str_or_none(data.get("queryType")),
+                "query": _str_or_none(data.get("query")),
+                "limit": _int_or_none(data.get("limit")),
+                "results": _int_or_none(data.get("queryResults")) or 0,
+                "elapsed_ms": _int_or_none(data.get("elapsedTime")) or 0,
+                "cached": _int_or_none(data.get("cached")) or 0,
+            }
+        )
+    records.sort(key=lambda row: int(row.get("id") or 0), reverse=True)
+    return records
+
+
+def _network_history_summary(records: list[dict[str, object]]) -> dict[str, object]:
+    by_indexer: dict[str, dict[str, object]] = {}
+    by_media_type: dict[str, dict[str, object]] = {}
+    by_query_type: dict[str, dict[str, object]] = {}
+    successful = 0
+    failed = 0
+    total_results = 0
+    total_elapsed_ms = 0
+    cached = 0
+    for record in records:
+        is_success = record.get("successful") is True
+        successful += 1 if is_success else 0
+        failed += 0 if is_success else 1
+        total_results += int(record.get("results") or 0)
+        total_elapsed_ms += int(record.get("elapsed_ms") or 0)
+        cached += int(record.get("cached") or 0)
+        _bump_network_bucket(by_indexer, str(record.get("indexer") or "Unknown"), record)
+        _bump_network_bucket(by_media_type, str(record.get("media_type") or "unknown"), record)
+        _bump_network_bucket(by_query_type, str(record.get("query_type") or "unknown"), record)
+    return {
+        "upstream_calls": len(records),
+        "successful": successful,
+        "failed": failed,
+        "results": total_results,
+        "elapsed_ms": total_elapsed_ms,
+        "cached_calls": cached,
+        "by_indexer": sorted(by_indexer.values(), key=lambda item: str(item["name"])),
+        "by_media_type": sorted(by_media_type.values(), key=lambda item: str(item["name"])),
+        "by_query_type": sorted(by_query_type.values(), key=lambda item: str(item["name"])),
+    }
+
+
+def _bump_network_bucket(
+    buckets: dict[str, dict[str, object]],
+    key: str,
+    record: dict[str, object],
+) -> None:
+    bucket = buckets.setdefault(
+        key,
+        {
+            "name": key,
+            "calls": 0,
+            "successful": 0,
+            "failed": 0,
+            "results": 0,
+            "elapsed_ms": 0,
+            "cached_calls": 0,
+        },
+    )
+    bucket["calls"] = int(bucket["calls"]) + 1
+    if record.get("successful") is True:
+        bucket["successful"] = int(bucket["successful"]) + 1
+    else:
+        bucket["failed"] = int(bucket["failed"]) + 1
+    bucket["results"] = int(bucket["results"]) + int(record.get("results") or 0)
+    bucket["elapsed_ms"] = int(bucket["elapsed_ms"]) + int(record.get("elapsed_ms") or 0)
+    bucket["cached_calls"] = int(bucket["cached_calls"]) + int(record.get("cached") or 0)
+
+
+def _media_type_from_categories(categories: str | None) -> str:
+    if not categories:
+        return "unknown"
+    parts = {part.strip() for part in categories.split(",")}
+    if "2000" in parts:
+        return "movie"
+    if "5000" in parts:
+        return "tv"
+    return "unknown"
+
+
+def _redact_query_fields(rows: list[dict[str, Any]] | list[dict[str, object]]) -> None:
+    for row in rows:
+        if "query" in row and row["query"]:
+            row["query"] = "<redacted>"
 
 
 def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:

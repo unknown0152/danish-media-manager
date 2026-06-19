@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     wanted_search_enabled: bool = Field(default=False, alias="WANTED_SEARCH_ENABLED")
     wanted_search_max_per_cycle: int = Field(default=10, alias="WANTED_SEARCH_MAX_PER_CYCLE")
     recent_feed_sync_enabled: bool = Field(default=True, alias="RECENT_FEED_SYNC_ENABLED")
+    recent_feed_sync_interval_seconds: int = Field(
+        default=900,
+        alias="RECENT_FEED_SYNC_INTERVAL_SECONDS",
+    )
     recent_feed_limit: int = Field(default=500, alias="RECENT_FEED_LIMIT")
     monitored_requests_max_per_cycle: int = Field(
         default=100,
@@ -49,6 +53,7 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = Field(default=20.0, alias="REQUEST_TIMEOUT_SECONDS")
     allow_direct_download_urls: bool = Field(default=False, alias="ALLOW_DIRECT_DOWNLOAD_URLS")
+    debug_redact_queries: bool = Field(default=False, alias="DEBUG_REDACT_QUERIES")
     danish_audio_profile_name: str = Field(default="Danish Audio", alias="DANISH_AUDIO_PROFILE_NAME")
     danish_subtitles_profile_name: str = Field(
         default="Danish Subtitles",

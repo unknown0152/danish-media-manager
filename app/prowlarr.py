@@ -228,6 +228,59 @@ class ProwlarrClient:
         health = self._get_list("/api/v1/health")
         return diagnostics_from_payloads(indexers, statuses, health)
 
+    def history(self, *, page_size: int = 1000) -> dict[str, Any]:
+        if not self.api_key:
+            raise RuntimeError("PROWLARR_API_KEY is not set")
+
+        safe_page_size = max(1, min(page_size, 1000))
+        started = time.perf_counter()
+        status_code: int | None = None
+        result_count: int | None = None
+        error: str | None = None
+        with httpx.Client(timeout=self.timeout) as client:
+            try:
+                resp = client.get(
+                    f"{self.base_url}/api/v1/history",
+                    params={
+                        "page": 1,
+                        "pageSize": safe_page_size,
+                        "sortKey": "date",
+                        "sortDirection": "descending",
+                    },
+                    headers={"X-Api-Key": self.api_key},
+                )
+                status_code = resp.status_code
+                resp.raise_for_status()
+                data = resp.json()
+                records = data.get("records") if isinstance(data, dict) else None
+                result_count = len(records) if isinstance(records, list) else None
+            except Exception as exc:
+                error = _error_text(exc)
+                raise
+            finally:
+                self._record_api_call(
+                    operation="history",
+                    endpoint="/api/v1/history",
+                    method="GET",
+                    started=started,
+                    status_code=status_code,
+                    result_count=result_count,
+                    error=error,
+                )
+
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Unexpected Prowlarr history response: {type(data).__name__}")
+        return data
+
+    def latest_history_id(self) -> int | None:
+        records = self.history(page_size=1).get("records")
+        if not isinstance(records, list) or not records:
+            return None
+        first = records[0]
+        if not isinstance(first, dict):
+            return None
+        return _int_or_none(first.get("id"))
+
     def _get_list(self, path: str) -> list[dict[str, Any]]:
         started = time.perf_counter()
         status_code: int | None = None

@@ -44,3 +44,24 @@ def test_wanted_monitor_runs_even_when_seerr_sync_fails(monkeypatch, tmp_path) -
     main.run_background_monitor_cycle(settings)
 
     assert calls == [7]
+
+
+def test_background_monitor_can_skip_recent_feed(monkeypatch, tmp_path) -> None:
+    calls: list[str] = []
+
+    def recording_recent_feed(**kwargs):
+        calls.append("feed")
+
+    monkeypatch.setattr(main, "sync_recent_releases", recording_recent_feed)
+
+    settings = Settings(
+        DATABASE_PATH=str(tmp_path / "dmm.db"),
+        SEERR_API_KEY="",
+        SEERR_SYNC_ENABLED=False,
+        RECENT_FEED_SYNC_ENABLED=True,
+        WANTED_SEARCH_ENABLED=False,
+    )
+
+    main.run_background_monitor_cycle(settings, run_recent_feed=False)
+
+    assert calls == []

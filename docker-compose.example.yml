@@ -1,6 +1,6 @@
 services:
   danish-media-manager:
-    image: ghcr.io/unknown0152/danish-media-manager:v0.38.0
+    image: ghcr.io/unknown0152/danish-media-manager:v0.39.0
     container_name: danish-media-manager
     environment:
       PROWLARR_URL: http://prowlarr:9696
@@ -19,6 +19,7 @@ services:
       WANTED_SEARCH_ENABLED: "false"
       WANTED_SEARCH_MAX_PER_CYCLE: "2"
       RECENT_FEED_SYNC_ENABLED: "true"
+      RECENT_FEED_SYNC_INTERVAL_SECONDS: "900"
       RECENT_FEED_LIMIT: "500"
       MONITORED_REQUESTS_MAX_PER_CYCLE: "100"
       ALTMOUNT_URL: http://danish-intelligence:9699/altmount
