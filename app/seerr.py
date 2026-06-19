@@ -4,6 +4,7 @@ import httpx
 
 from app.config import Settings
 from app.models import MetadataResult
+from app.metadata import tv_seasons_from_tmdb
 from app.titlematch import parse_year
 
 
@@ -138,6 +139,7 @@ def metadata_from_seerr_detail(
         tmdb_id=str(tmdb_id) if tmdb_id is not None else None,
         tvdb_id=_str_or_none(detail.get("tvdbId")),
         imdb_id=_str_or_none(detail.get("imdbId")),
+        tv_seasons=tv_seasons_from_tmdb(detail.get("seasons")),
     )
 
 

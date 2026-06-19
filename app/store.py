@@ -272,6 +272,46 @@ class Store:
             ).fetchone()
         return dict(row)
 
+    def create_monitored_episode_items(
+        self,
+        request_id: int,
+        *,
+        season_number: int,
+        episode_count: int,
+    ) -> int:
+        if episode_count <= 0:
+            return 0
+        with self._connect() as conn:
+            existing = {
+                row["episode_number"]
+                for row in conn.execute(
+                    """
+                    select episode_number
+                    from monitored_items
+                    where request_id = ?
+                      and item_type = 'episode'
+                      and season_number = ?
+                    """,
+                    (request_id, season_number),
+                ).fetchall()
+                if row["episode_number"] is not None
+            }
+            added = 0
+            for episode_number in range(1, episode_count + 1):
+                if episode_number in existing:
+                    continue
+                conn.execute(
+                    """
+                    insert into monitored_items (
+                        request_id, media_type, item_type, season_number, episode_number
+                    )
+                    values (?, 'tv', 'episode', ?, ?)
+                    """,
+                    (request_id, season_number, episode_number),
+                )
+                added += 1
+        return added
+
     def monitored_items_for_request(self, request_id: int) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(

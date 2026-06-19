@@ -3,7 +3,7 @@ from typing import Any
 import httpx
 
 from app.config import Settings
-from app.models import MediaType, MetadataResult
+from app.models import MediaType, MetadataResult, TVSeasonMetadata
 from app.titlematch import clean_title, parse_year
 
 
@@ -142,6 +142,13 @@ class MetadataClient:
         if not item:
             return None
 
+        tv_seasons = []
+        if media_type == "tv" and item.get("id") is not None:
+            try:
+                tv_seasons = self._tmdb_tv_seasons(str(item["id"]))
+            except httpx.HTTPError:
+                tv_seasons = []
+
         title = str(item.get("title") or item.get("name") or fallback_title(query))
         date = str(item.get("release_date") or item.get("first_air_date") or "")
         poster_path = item.get("poster_path")
@@ -156,7 +163,19 @@ class MetadataClient:
             source="tmdb",
             external_id=_str_or_none(item.get("id")),
             tmdb_id=_str_or_none(item.get("id")),
+            tv_seasons=tv_seasons,
         )
+
+    def _tmdb_tv_seasons(self, tmdb_id: str) -> list[TVSeasonMetadata]:
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.get(
+                f"{self.tmdb_base_url}/tv/{tmdb_id}",
+                params={"api_key": self.tmdb_api_key},
+            )
+            response.raise_for_status()
+            data = response.json()
+        seasons = data.get("seasons") if isinstance(data, dict) else None
+        return tv_seasons_from_tmdb(seasons)
 
 
 def metadata_from_radarr_item(item: dict[str, Any], query: str) -> MetadataResult:
@@ -188,6 +207,7 @@ def metadata_from_sonarr_item(item: dict[str, Any], query: str) -> MetadataResul
         tmdb_id=tmdb_id,
         tvdb_id=tvdb_id,
         imdb_id=imdb_id,
+        tv_seasons=tv_seasons_from_sonarr(item.get("seasons")),
     )
 
 
@@ -209,7 +229,48 @@ def metadata_from_seerr_item(item: dict[str, Any], query: str) -> MetadataResult
         tmdb_id=_str_or_none(item.get("id")) if media_type == "movie" else None,
         tvdb_id=_str_or_none(item.get("tvdbId")),
         imdb_id=_str_or_none(item.get("imdbId")),
+        tv_seasons=tv_seasons_from_tmdb(item.get("seasons")),
     )
+
+
+def tv_seasons_from_sonarr(seasons: Any) -> list[TVSeasonMetadata]:
+    if not isinstance(seasons, list):
+        return []
+    parsed: list[TVSeasonMetadata] = []
+    for season in seasons:
+        if not isinstance(season, dict):
+            continue
+        season_number = _int_or_none(season.get("seasonNumber"))
+        if season_number is None:
+            continue
+        parsed.append(
+            TVSeasonMetadata(
+                season_number=season_number,
+                episode_count=_int_or_none(season.get("episodeCount")),
+            )
+        )
+    return parsed
+
+
+def tv_seasons_from_tmdb(seasons: Any) -> list[TVSeasonMetadata]:
+    if not isinstance(seasons, list):
+        return []
+    parsed: list[TVSeasonMetadata] = []
+    for season in seasons:
+        if not isinstance(season, dict):
+            continue
+        season_number = _int_or_none(season.get("season_number") or season.get("seasonNumber"))
+        if season_number is None:
+            continue
+        parsed.append(
+            TVSeasonMetadata(
+                season_number=season_number,
+                episode_count=_int_or_none(season.get("episode_count") or season.get("episodeCount")),
+                name=_str_or_none(season.get("name")),
+                air_date=_str_or_none(season.get("air_date") or season.get("airDate")),
+            )
+        )
+    return parsed
 
 
 def local_metadata(query: str) -> MetadataResult:
@@ -241,3 +302,10 @@ def _str_or_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

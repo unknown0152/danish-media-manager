@@ -1,5 +1,6 @@
 from app.decision import decide_release
-from app.models import MetadataResult, Release
+from app.main import _expand_tv_items_from_metadata
+from app.models import MetadataResult, Release, TVSeasonMetadata
 from app.quality import parse_quality
 from app.scoring import score_release
 from app.store import Store
@@ -133,6 +134,27 @@ def test_store_creates_default_monitored_items(tmp_path) -> None:
     assert episode_items[0]["item_type"] == "episode"
     assert episode_items[0]["season_number"] == 2
     assert episode_items[0]["episode_number"] == 7
+
+
+def test_tv_season_metadata_expands_monitored_episode_items(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request("The Last of Us", "tv", tv_season=2)
+    added = _expand_tv_items_from_metadata(
+        request_store=store,
+        request_id=request["id"],
+        media_type="tv",
+        metadata_result=MetadataResult(
+            title="The Last of Us",
+            year=2023,
+            tv_seasons=[TVSeasonMetadata(season_number=2, episode_count=3)],
+        ),
+        seasons=[2],
+    )
+
+    items = store.monitored_items_for_request(request["id"])
+    assert added == 3
+    assert [item["item_type"] for item in items] == ["season", "episode", "episode", "episode"]
+    assert [item["episode_number"] for item in items if item["item_type"] == "episode"] == [1, 2, 3]
 
 
 def test_store_marks_matching_monitored_item(tmp_path) -> None:

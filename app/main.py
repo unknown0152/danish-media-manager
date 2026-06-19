@@ -39,7 +39,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.34.0")
+app = FastAPI(title="Danish Media Manager", version="0.35.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -228,6 +228,13 @@ def create_scored_request(
     )
     if not updated:
         raise HTTPException(status_code=500, detail="Request disappeared after creation")
+    _expand_tv_items_from_metadata(
+        request_store=request_store,
+        request_id=request_id,
+        media_type=media_type,
+        metadata_result=metadata_result,
+        seasons=[tv_season] if tv_season is not None and tv_episode is None else [],
+    )
     return MediaRequestResponse(
         request=MediaRequest.model_validate(updated),
         search=search_response,
@@ -1096,6 +1103,13 @@ def sync_seerr_requests(
                 media_type=media_type,
                 item=item,
             )
+            _expand_tv_items_from_metadata(
+                request_store=request_store,
+                request_id=response.request.id,
+                media_type=media_type,
+                metadata_result=metadata_result,
+                seasons=_seerr_requested_seasons(item),
+            )
             if should_auto_grab:
                 try:
                     auto_grab_seerr_request(
@@ -1243,6 +1257,31 @@ def _create_seerr_monitored_items(
             item_type="season",
             season_number=season,
         )
+
+
+def _expand_tv_items_from_metadata(
+    *,
+    request_store: Store,
+    request_id: int,
+    media_type: str,
+    metadata_result: MetadataResult,
+    seasons: list[int],
+) -> int:
+    if media_type != "tv" or not seasons:
+        return 0
+    wanted = set(seasons)
+    added = 0
+    for season in metadata_result.tv_seasons:
+        if season.season_number not in wanted:
+            continue
+        if not season.episode_count:
+            continue
+        added += request_store.create_monitored_episode_items(
+            request_id,
+            season_number=season.season_number,
+            episode_count=season.episode_count,
+        )
+    return added
 
 
 def _seerr_requested_seasons(item: dict[str, object]) -> list[int]:

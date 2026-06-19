@@ -35,6 +35,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Preserve TV season/episode scope on manual requests and Seerr imports so feed matches can avoid grabbing the wrong season when Seerr asked for a specific one.
 - Store feed sync run history and per-request last feed check/match fields for debugging missed releases.
 - Maintain first-class monitored items for movies, TV series, TV seasons, and TV episodes, exposed through `/api/monitored-items` and `/api/requests/{id}/items`.
+- Expand scoped TV season requests into episode monitored items when Sonarr, TMDB, or Seerr metadata includes episode counts.
 - Keep missing/failed wanted requests on a bounded background retry loop.
 - Retry all wanted requests manually from the Requests panel.
 - Sync the recent feed manually with `POST /api/feed/sync`.
@@ -60,6 +61,8 @@ After the feed pass, DMM can also retry stored wanted rows with status `no_resul
 For TV, DMM stores `tv_season` and `tv_episode` when a request is scoped. Seerr multi-season requests preserve the full season list inside `origin_details`; single-season requests also populate `tv_season`. Recent feed matching uses that scope to reject obvious wrong-season releases.
 
 Each request also gets monitored child items. A movie request creates a `movie` item; a TV request creates a `series`, `season`, or `episode` item depending on scope. Seerr multi-season requests add season items for each requested season. These items track their own feed check/match state, which is the foundation for Sonarr-like wanted boards.
+
+When metadata includes season episode counts, DMM expands a scoped season request into episode child items. This is optional and backward-compatible: if no episode-count metadata is available, DMM keeps the season item and can expand later when richer metadata arrives.
 
 ## Request Workflow
 

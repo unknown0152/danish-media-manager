@@ -4,6 +4,7 @@ from app.metadata import (
     metadata_from_radarr_item,
     metadata_from_seerr_item,
     metadata_from_sonarr_item,
+    tv_seasons_from_tmdb,
 )
 from app.targets import exact_target_for_path, parse_targets, target_for_path
 
@@ -76,6 +77,10 @@ def test_sonarr_metadata_payload_maps_to_common_metadata() -> None:
             "tmdbId": 100088,
             "tvdbId": 392256,
             "imdbId": "tt3581920",
+            "seasons": [
+                {"seasonNumber": 1, "episodeCount": 9},
+                {"seasonNumber": 2, "episodeCount": 7},
+            ],
             "images": [{"coverType": "poster", "remoteUrl": "https://example.invalid/tv.jpg"}],
         },
         "The Last of Us",
@@ -89,6 +94,10 @@ def test_sonarr_metadata_payload_maps_to_common_metadata() -> None:
     assert metadata.tvdb_id == "392256"
     assert metadata.imdb_id == "tt3581920"
     assert metadata.poster_url == "https://example.invalid/tv.jpg"
+    assert [(season.season_number, season.episode_count) for season in metadata.tv_seasons] == [
+        (1, 9),
+        (2, 7),
+    ]
 
 
 def test_seerr_metadata_payload_maps_to_common_metadata() -> None:
@@ -109,3 +118,21 @@ def test_seerr_metadata_payload_maps_to_common_metadata() -> None:
     assert metadata.year == 2022
     assert metadata.external_id == "414906"
     assert metadata.poster_url == "https://image.tmdb.org/t/p/w342/abc123.jpg"
+
+
+def test_tmdb_season_payload_maps_to_common_metadata() -> None:
+    seasons = tv_seasons_from_tmdb(
+        [
+            {
+                "season_number": 2,
+                "episode_count": 7,
+                "name": "Season 2",
+                "air_date": "2025-04-13",
+            }
+        ]
+    )
+
+    assert seasons[0].season_number == 2
+    assert seasons[0].episode_count == 7
+    assert seasons[0].name == "Season 2"
+    assert seasons[0].air_date == "2025-04-13"

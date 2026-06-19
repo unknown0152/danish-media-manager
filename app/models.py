@@ -41,6 +41,14 @@ class MetadataResult(BaseModel):
     tmdb_id: str | None = None
     tvdb_id: str | None = None
     imdb_id: str | None = None
+    tv_seasons: list["TVSeasonMetadata"] = Field(default_factory=list)
+
+
+class TVSeasonMetadata(BaseModel):
+    season_number: int
+    episode_count: int | None = None
+    name: str | None = None
+    air_date: str | None = None
 
 
 class MediaTarget(BaseModel):
