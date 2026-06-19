@@ -1,3 +1,5 @@
+import sqlite3
+
 from app.decision import decide_release
 from app.main import _expand_tv_items_from_metadata
 from app.models import MetadataResult, Release, TVSeasonMetadata
@@ -175,3 +177,32 @@ def test_store_marks_matching_monitored_item(tmp_path) -> None:
     assert updated["best_title"] == "The.Last.of.Us.S02.NORDiC.1080p"
     assert updated["last_feed_checked_at"] is not None
     assert updated["last_feed_matched_at"] is not None
+
+
+def test_store_migrates_old_grabs_table_without_non_constant_defaults(tmp_path) -> None:
+    db_path = tmp_path / "test.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            create table grabs (
+                id integer primary key autoincrement,
+                created_at text not null default current_timestamp,
+                title text not null,
+                media_type text not null,
+                category text,
+                response_json text not null
+            )
+            """
+        )
+        conn.execute(
+            """
+            insert into grabs (title, media_type, category, response_json)
+            values ('Primer.2004.NORDiC.1080p', 'movie', 'movies', '{}')
+            """
+        )
+
+    store = Store(str(db_path))
+    grabs = store.active_grabs()
+
+    assert grabs[0]["status"] == "grabbed"
+    assert grabs[0]["updated_at"] is not None

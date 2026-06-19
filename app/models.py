@@ -69,6 +69,9 @@ class MediaRequest(BaseModel):
     metadata_title: str | None = None
     metadata_year: int | None = None
     metadata_poster_url: str | None = None
+    metadata_tmdb_id: str | None = None
+    metadata_tvdb_id: str | None = None
+    metadata_imdb_id: str | None = None
     external_source: str | None = None
     external_id: str | None = None
     origin_source: str | None = None
@@ -213,6 +216,16 @@ class FeedSyncResult(BaseModel):
     grabbed: int = 0
     grab_failed: int = 0
     skipped: int = 0
+    errors: list[str] = Field(default_factory=list)
+
+
+class CompletionSyncResult(BaseModel):
+    checked: int = 0
+    downloading: int = 0
+    completed: int = 0
+    failed: int = 0
+    missing: int = 0
+    rescans_triggered: int = 0
     errors: list[str] = Field(default_factory=list)
 
 

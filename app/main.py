@@ -14,6 +14,8 @@ from app.danish_intelligence import DanishIntelligenceClient
 from app.import_health import check_import_health
 from app.metadata import MetadataClient
 from app.models import (
+    CompletionSyncResult,
+    DownloadItem,
     DownloadStatus,
     FeedSyncResult,
     GrabRequest,
@@ -39,7 +41,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.35.0")
+app = FastAPI(title="Danish Media Manager", version="0.36.0")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -102,6 +104,15 @@ def run_background_monitor_cycle(settings: Settings) -> None:
             )
         except Exception as exc:
             print(f"[DMM] Recent feed sync failed: {exc}", flush=True)
+    try:
+        sync_altmount_completions(
+            settings=settings,
+            altmount_client=AltMountClient(settings),
+            arr_client=ArrClient(settings),
+            request_store=Store(settings.database_path),
+        )
+    except Exception as exc:
+        print(f"[DMM] AltMount completion sync failed: {exc}", flush=True)
     if settings.wanted_search_enabled:
         try:
             retry_wanted_requests(
@@ -455,6 +466,7 @@ def grab_cached_result(
     request_store: Store,
     settings: Settings,
 ) -> GrabResponse:
+    monitored_item_id: int | None = None
     if request.result_id:
         cached = request_store.get_cached_release(request.result_id)
         if not cached:
@@ -472,6 +484,7 @@ def grab_cached_result(
         )
         request.title = str(cached.get("title") or request.title)
         request.media_type = str(cached.get("media_type") or request.media_type)  # type: ignore[assignment]
+        monitored_item_id = _monitored_item_id_for_cached_release(request_store, cached, request)
     elif request.download_url and not settings.allow_direct_download_urls:
         raise HTTPException(
             status_code=403,
@@ -479,10 +492,32 @@ def grab_cached_result(
         )
     try:
         response = altmount_client.add_uri(request)
-        request_store.record_grab(request, response)
+        request_store.record_grab(request, response, monitored_item_id=monitored_item_id)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return GrabResponse(ok=True, message="Sent to AltMount", altmount_response=response)
+
+
+def _monitored_item_id_for_cached_release(
+    request_store: Store,
+    cached: dict[str, object],
+    request: GrabRequest,
+) -> int | None:
+    request_id = _int_or_none(cached.get("request_id"))
+    if request_id is None:
+        return None
+    release_payload = json.loads(str(cached["release_json"]))
+    title = str(release_payload.get("title") or request.title) if isinstance(release_payload, dict) else request.title
+    season_number, episode_number = (
+        _parse_release_tv_scope(title) if request.media_type == "tv" else (None, None)
+    )
+    item = request_store.best_monitored_item_for_scope(
+        request_id,
+        media_type=request.media_type,
+        season_number=season_number,
+        episode_number=episode_number,
+    )
+    return int(item["id"]) if item else None
 
 
 def auto_grab_seerr_request(
@@ -716,6 +751,117 @@ def sync_recent_releases(
         errors=result.errors,
     )
     return result
+
+
+def sync_altmount_completions(
+    *,
+    settings: Settings,
+    altmount_client: AltMountClient,
+    arr_client: ArrClient,
+    request_store: Store,
+) -> CompletionSyncResult:
+    result = CompletionSyncResult()
+    grabs = request_store.active_grabs(limit=100)
+    if not grabs:
+        return result
+    downloads = altmount_client.downloads()
+    queue_by_id, queue_by_name = _download_maps(downloads.queue)
+    history_by_id, history_by_name = _download_maps(downloads.history)
+    for grab in grabs:
+        result.checked += 1
+        grab_id = int(grab["id"])
+        try:
+            queue_item = _download_for_grab(grab, by_id=queue_by_id, by_name=queue_by_name)
+            if queue_item:
+                request_store.update_grab_status(grab_id, status="downloading")
+                _set_grab_item_status(request_store, grab, "downloading")
+                result.downloading += 1
+                continue
+            history_item = _download_for_grab(grab, by_id=history_by_id, by_name=history_by_name)
+            if history_item:
+                status = history_item.status.lower()
+                if any(token in status for token in ("fail", "error", "repair")):
+                    request_store.update_grab_status(
+                        grab_id,
+                        status="failed",
+                        completed=False,
+                        last_error=history_item.status,
+                    )
+                    _set_grab_item_status(request_store, grab, "failed")
+                    result.failed += 1
+                    continue
+                request_store.update_grab_status(grab_id, status="import_pending", completed=True)
+                _set_grab_item_status(request_store, grab, "import_pending")
+                if _trigger_arr_rescan_for_grab(
+                    grab,
+                    settings=settings,
+                    arr_client=arr_client,
+                    request_store=request_store,
+                ):
+                    result.rescans_triggered += 1
+                result.completed += 1
+                continue
+            result.missing += 1
+        except Exception as exc:
+            result.errors.append(f"Grab {grab_id}: {exc}")
+    return result
+
+
+def _download_maps(items: list[DownloadItem]) -> tuple[dict[str, DownloadItem], dict[str, DownloadItem]]:
+    by_id: dict[str, DownloadItem] = {}
+    by_name: dict[str, DownloadItem] = {}
+    for item in items:
+        if item.id:
+            by_id[item.id] = item
+        name_key = _normalize_download_name(item.name)
+        if name_key:
+            by_name[name_key] = item
+    return by_id, by_name
+
+
+def _download_for_grab(
+    grab: dict[str, object],
+    *,
+    by_id: dict[str, DownloadItem],
+    by_name: dict[str, DownloadItem],
+) -> DownloadItem | None:
+    download_id = _str_or_none(grab.get("download_id"))
+    if download_id and download_id in by_id:
+        return by_id[download_id]
+    title = str(grab.get("download_name") or grab.get("title") or "")
+    return by_name.get(_normalize_download_name(title))
+
+
+def _set_grab_item_status(request_store: Store, grab: dict[str, object], status: str) -> None:
+    item_id = _int_or_none(grab.get("monitored_item_id"))
+    if item_id is not None:
+        request_store.set_monitored_item_status(item_id, status)
+
+
+def _trigger_arr_rescan_for_grab(
+    grab: dict[str, object],
+    *,
+    settings: Settings,
+    arr_client: ArrClient,
+    request_store: Store,
+) -> bool:
+    item_id = _int_or_none(grab.get("monitored_item_id"))
+    if item_id is None:
+        return False
+    item = request_store.get_monitored_item(item_id)
+    if not item:
+        return False
+    row = request_store.get_media_request(int(item["request_id"]))
+    if not row:
+        return False
+    metadata_result = _metadata_from_row(row)
+    if not metadata_result:
+        return False
+    return arr_client.rescan_for_metadata(str(row["media_type"]), metadata_result)
+
+
+def _normalize_download_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
 def _feed_match_query(row: dict[str, object], metadata_result: MetadataResult | None) -> str:
@@ -1154,6 +1300,24 @@ def downloads(altmount_client: AltMountClient = Depends(altmount)) -> DownloadSt
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.post("/api/completions/sync", response_model=CompletionSyncResult)
+def sync_completions_now(
+    settings: Settings = Depends(get_settings),
+    altmount_client: AltMountClient = Depends(altmount),
+    arr_client: ArrClient = Depends(arr),
+    request_store: Store = Depends(store),
+) -> CompletionSyncResult:
+    try:
+        return sync_altmount_completions(
+            settings=settings,
+            altmount_client=altmount_client,
+            arr_client=arr_client,
+            request_store=request_store,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @app.get("/api/import-health", response_model=ImportHealth)
 def import_health(settings: Settings = Depends(get_settings)) -> ImportHealth:
     return check_import_health(settings)
@@ -1212,6 +1376,15 @@ def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:
         year=year if isinstance(year, int) else None,
         poster_url=row.get("metadata_poster_url")
         if isinstance(row.get("metadata_poster_url"), str)
+        else None,
+        tmdb_id=row.get("metadata_tmdb_id")
+        if isinstance(row.get("metadata_tmdb_id"), str)
+        else None,
+        tvdb_id=row.get("metadata_tvdb_id")
+        if isinstance(row.get("metadata_tvdb_id"), str)
+        else None,
+        imdb_id=row.get("metadata_imdb_id")
+        if isinstance(row.get("metadata_imdb_id"), str)
         else None,
         source="stored",
     )

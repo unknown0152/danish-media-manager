@@ -3,8 +3,16 @@ from fastapi import HTTPException
 
 from app.config import Settings
 from app.decision import decide_release
-from app.main import best_release, grab_cached_result, retry_wanted_requests
-from app.models import Decision, GrabRequest, MetadataResult, Release, ScoreBreakdown
+from app.main import best_release, grab_cached_result, retry_wanted_requests, sync_altmount_completions
+from app.models import (
+    Decision,
+    DownloadItem,
+    DownloadStatus,
+    GrabRequest,
+    MetadataResult,
+    Release,
+    ScoreBreakdown,
+)
 from app.prowlarr import release_sort_key
 from app.quality import QualityInfo
 from app.quality import parse_quality
@@ -24,7 +32,15 @@ class RecordingAltMount:
 
     def add_uri(self, request: GrabRequest) -> dict[str, str]:
         self.requests.append(request)
-        return {"status": "ok"}
+        return {"status": "ok", "nzo_id": "download-1", "name": request.title}
+
+
+class StaticDownloadsAltMount:
+    def __init__(self, downloads: DownloadStatus) -> None:
+        self._downloads = downloads
+
+    def downloads(self) -> DownloadStatus:
+        return self._downloads
 
 
 class StaticMetadata:
@@ -47,6 +63,15 @@ class StaticSearchClient:
 
 class ReadyArr:
     def ensure_media_target(self, **kwargs):
+        return True
+
+
+class RecordingArr(ReadyArr):
+    def __init__(self) -> None:
+        self.rescans: list[tuple[str, MetadataResult]] = []
+
+    def rescan_for_metadata(self, media_type: str, metadata: MetadataResult) -> bool:
+        self.rescans.append((media_type, metadata))
         return True
 
 
@@ -141,6 +166,156 @@ def test_direct_download_urls_can_be_explicitly_enabled(tmp_path) -> None:
     assert response.ok is True
     assert len(altmount.requests) == 1
     assert altmount.requests[0].download_url == "http://example.invalid/manual.nzb"
+
+
+def test_grab_cached_result_links_grab_to_monitored_item(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request(
+        "The Last of Us",
+        "tv",
+        metadata=MetadataResult(title="The Last of Us", year=2023, tvdb_id="392256"),
+        tv_season=2,
+    )
+    release = _manual_release(
+        title="The.Last.of.Us.S02.NORDiC.1080p.WEB-DL",
+        accepted=True,
+        score=9000,
+        resolution="1080p",
+        source="web-dl",
+        size=20_000_000_000,
+    )
+    store.cache_release("The Last of Us", "tv", release, request_id=request["id"])
+
+    response = grab_cached_result(
+        GrabRequest(title=release.title, media_type="tv", result_id=release.result_id),
+        altmount_client=RecordingAltMount(),  # type: ignore[arg-type]
+        request_store=store,
+        settings=Settings(),
+    )
+
+    grabs = store.recent_grabs()
+    items = store.monitored_items_for_request(request["id"])
+    assert response.ok is True
+    assert grabs[0]["result_id"] == release.result_id
+    assert grabs[0]["monitored_item_id"] == items[0]["id"]
+    assert grabs[0]["status"] == "grabbed"
+    assert "payload" not in grabs[0]
+    assert "response" not in grabs[0]
+    assert items[0]["status"] == "grabbed"
+
+
+def test_completion_sync_marks_grab_import_pending_and_triggers_arr_rescan(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request(
+        "Primer 2004",
+        "movie",
+        metadata=MetadataResult(title="Primer", year=2004, tmdb_id="14337"),
+    )
+    item = store.monitored_items_for_request(request["id"])[0]
+    release = _manual_release(
+        title="Primer.2004.NORDiC.1080p.BluRay.x265",
+        accepted=True,
+        score=9000,
+        resolution="1080p",
+        source="bluray",
+        size=8_000_000_000,
+    )
+    store.cache_release("Primer 2004", "movie", release, request_id=request["id"])
+    grab_cached_result(
+        GrabRequest(title=release.title, media_type="movie", result_id=release.result_id),
+        altmount_client=RecordingAltMount(),  # type: ignore[arg-type]
+        request_store=store,
+        settings=Settings(),
+    )
+    arr = RecordingArr()
+
+    result = sync_altmount_completions(
+        settings=Settings(),
+        altmount_client=StaticDownloadsAltMount(
+            DownloadStatus(
+                status="Idle",
+                queue=[],
+                history=[
+                    DownloadItem(
+                        id="done-1",
+                        name=release.title,
+                        status="Completed",
+                        category="movies",
+                    )
+                ],
+            )
+        ),  # type: ignore[arg-type]
+        arr_client=arr,  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    grabs = store.recent_grabs()
+    updated_item = store.get_monitored_item(item["id"])
+    assert result.completed == 1
+    assert result.rescans_triggered == 1
+    assert grabs[0]["status"] == "import_pending"
+    assert grabs[0]["completed_at"] is not None
+    assert updated_item is not None
+    assert updated_item["status"] == "import_pending"
+    assert arr.rescans[0][0] == "movie"
+    assert arr.rescans[0][1].title == "Primer"
+    assert arr.rescans[0][1].tmdb_id == "14337"
+
+
+def test_completion_sync_matches_altmount_history_by_download_id(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request(
+        "The Batman 2022",
+        "movie",
+        metadata=MetadataResult(title="The Batman", year=2022, tmdb_id="414906"),
+    )
+    item = store.monitored_items_for_request(request["id"])[0]
+    release = _manual_release(
+        title="The.Batman.2022.NORDiC.2160p.UHD.BluRay.x265",
+        accepted=True,
+        score=12000,
+        resolution="2160p",
+        source="bluray",
+        size=40_000_000_000,
+    )
+    store.cache_release("The Batman 2022", "movie", release, request_id=request["id"])
+    grab_cached_result(
+        GrabRequest(title=release.title, media_type="movie", result_id=release.result_id),
+        altmount_client=RecordingAltMount(),  # type: ignore[arg-type]
+        request_store=store,
+        settings=Settings(),
+    )
+    arr = RecordingArr()
+
+    result = sync_altmount_completions(
+        settings=Settings(),
+        altmount_client=StaticDownloadsAltMount(
+            DownloadStatus(
+                status="Idle",
+                queue=[],
+                history=[
+                    DownloadItem(
+                        id="download-1",
+                        name="AltMount renamed completed item",
+                        status="Completed",
+                        category="movies",
+                    )
+                ],
+            )
+        ),  # type: ignore[arg-type]
+        arr_client=arr,  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    grabs = store.recent_grabs()
+    updated_item = store.get_monitored_item(item["id"])
+    assert result.completed == 1
+    assert result.missing == 0
+    assert result.rescans_triggered == 1
+    assert grabs[0]["status"] == "import_pending"
+    assert updated_item is not None
+    assert updated_item["status"] == "import_pending"
+    assert arr.rescans[0][1].tmdb_id == "414906"
 
 
 def test_release_sort_key_prefers_accepted_then_quality() -> None:

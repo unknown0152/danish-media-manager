@@ -42,6 +42,8 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Grab the stored best result manually when ready.
 - Send a selected release URL to AltMount through the SAB-compatible API.
 - Show normalized AltMount download status, active queue, and recent history.
+- Track AltMount grab IDs through queue/history completion and update monitored item state.
+- Trigger Radarr/Sonarr rescans when AltMount reports a grabbed item as completed.
 - Show per-search Prowlarr indexer result counts and best scores.
 - Check whether AltMount import paths are visible and using symlinks instead of regular files.
 - Show active Prowlarr indexer failures and health warnings.
@@ -64,6 +66,8 @@ Each request also gets monitored child items. A movie request creates a `movie` 
 
 When metadata includes season episode counts, DMM expands a scoped season request into episode child items. This is optional and backward-compatible: if no episode-count metadata is available, DMM keeps the season item and can expand later when richer metadata arrives.
 
+After a grab, DMM stores the AltMount download ID when the SAB-compatible API returns one. Each background cycle checks AltMount queue/history, marks linked monitored items as `downloading`, `failed`, or `import_pending`, and asks Radarr/Sonarr to rescan the matching movie or series once AltMount reports completion. The same completion pass can be run manually with `POST /api/completions/sync`.
+
 ## Request Workflow
 
 Manual DMM requests store the search and best candidate until a user clicks grab. Seerr-imported requests can auto-grab through the background sync.
@@ -81,6 +85,7 @@ POST /api/seerr/sync
 POST /api/feed/sync
 GET  /api/feed/runs
 POST /api/wanted/retry
+POST /api/completions/sync
 GET  /api/downloads
 GET  /api/import-health
 GET  /api/prowlarr-diagnostics

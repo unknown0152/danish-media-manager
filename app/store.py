@@ -24,9 +24,17 @@ class Store:
                 create table if not exists grabs (
                     id integer primary key autoincrement,
                     created_at text not null default current_timestamp,
+                    updated_at text not null default current_timestamp,
                     title text not null,
                     media_type text not null,
                     category text,
+                    result_id text,
+                    monitored_item_id integer,
+                    download_id text,
+                    download_name text,
+                    status text not null default 'grabbed',
+                    completed_at text,
+                    last_error text,
                     payload text not null,
                     response text
                 )
@@ -46,6 +54,28 @@ class Store:
                 )
                 """
             )
+            self._ensure_column(
+                conn,
+                "grabs",
+                "updated_at",
+                "text",
+            )
+            self._ensure_column(conn, "grabs", "result_id", "text")
+            self._ensure_column(conn, "grabs", "monitored_item_id", "integer")
+            self._ensure_column(conn, "grabs", "download_id", "text")
+            self._ensure_column(conn, "grabs", "download_name", "text")
+            self._ensure_column(conn, "grabs", "status", "text not null default 'grabbed'")
+            self._ensure_column(conn, "grabs", "completed_at", "text")
+            self._ensure_column(conn, "grabs", "last_error", "text")
+            conn.execute(
+                """
+                update grabs
+                set updated_at = coalesce(updated_at, created_at, current_timestamp),
+                    status = coalesce(status, 'grabbed')
+                where updated_at is null
+                   or status is null
+                """
+            )
             conn.execute(
                 """
                 create table if not exists media_requests (
@@ -60,6 +90,9 @@ class Store:
                     metadata_title text,
                     metadata_year integer,
                     metadata_poster_url text,
+                    metadata_tmdb_id text,
+                    metadata_tvdb_id text,
+                    metadata_imdb_id text,
                     external_source text,
                     external_id text,
                     origin_source text,
@@ -128,6 +161,9 @@ class Store:
             self._ensure_column(conn, "media_requests", "metadata_title", "text")
             self._ensure_column(conn, "media_requests", "metadata_year", "integer")
             self._ensure_column(conn, "media_requests", "metadata_poster_url", "text")
+            self._ensure_column(conn, "media_requests", "metadata_tmdb_id", "text")
+            self._ensure_column(conn, "media_requests", "metadata_tvdb_id", "text")
+            self._ensure_column(conn, "media_requests", "metadata_imdb_id", "text")
             self._ensure_column(conn, "media_requests", "external_source", "text")
             self._ensure_column(conn, "media_requests", "external_id", "text")
             self._ensure_column(conn, "media_requests", "origin_source", "text")
@@ -180,10 +216,11 @@ class Store:
                 insert into media_requests (
                     query, media_type, min_resolution, target_path, target_label,
                     metadata_title, metadata_year, metadata_poster_url,
+                    metadata_tmdb_id, metadata_tvdb_id, metadata_imdb_id,
                     external_source, external_id, origin_source, origin_details,
                     tv_season, tv_episode
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     query,
@@ -194,6 +231,9 @@ class Store:
                     metadata.title if metadata else None,
                     metadata.year if metadata else None,
                     metadata.poster_url if metadata else None,
+                    metadata.tmdb_id if metadata else None,
+                    metadata.tvdb_id if metadata else None,
+                    metadata.imdb_id if metadata else None,
                     external_source,
                     external_id,
                     origin_source,
@@ -348,6 +388,18 @@ class Store:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_monitored_item(self, item_id: int) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                select *
+                from monitored_items
+                where id = ?
+                """,
+                (item_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
     def best_monitored_item_for_scope(
         self,
         request_id: int,
@@ -406,6 +458,18 @@ class Store:
                 where id = ?
                 """,
                 (status, result_id, title, item_id),
+            )
+
+    def set_monitored_item_status(self, item_id: int, status: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update monitored_items
+                set updated_at = current_timestamp,
+                    status = ?
+                where id = ?
+                """,
+                (status, item_id),
             )
 
     def get_media_request_by_external(
@@ -664,27 +728,82 @@ class Store:
             ).fetchone()
         return dict(row) if row else None
 
-    def record_grab(self, request: GrabRequest, response: Any) -> None:
+    def record_grab(
+        self,
+        request: GrabRequest,
+        response: Any,
+        *,
+        monitored_item_id: int | None = None,
+    ) -> int:
+        download_id, download_name = _download_identity(response)
         with self._connect() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
-                insert into grabs (title, media_type, category, payload, response)
-                values (?, ?, ?, ?, ?)
+                insert into grabs (
+                    title, media_type, category, result_id, monitored_item_id,
+                    download_id, download_name, status, payload, response
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     request.title,
                     request.media_type,
                     request.category,
+                    request.result_id,
+                    monitored_item_id,
+                    download_id,
+                    download_name or request.title,
+                    "grabbed",
                     request.model_dump_json(),
                     json.dumps(response, ensure_ascii=False),
                 ),
+            )
+        if monitored_item_id is not None:
+            self.set_monitored_item_status(monitored_item_id, "grabbed")
+        return int(cursor.lastrowid)
+
+    def active_grabs(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select *
+                from grabs
+                where status in ('grabbed', 'downloading', 'import_pending')
+                order by updated_at asc, id asc
+                limit ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_grab_status(
+        self,
+        grab_id: int,
+        *,
+        status: str,
+        completed: bool = False,
+        last_error: str | None = None,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                update grabs
+                set updated_at = current_timestamp,
+                    status = ?,
+                    completed_at = case when ? then current_timestamp else completed_at end,
+                    last_error = ?
+                where id = ?
+                """,
+                (status, 1 if completed else 0, last_error, grab_id),
             )
 
     def recent_grabs(self, limit: int = 50) -> list[dict[str, Any]]:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                select id, created_at, title, media_type, category, response
+                select id, created_at, title, media_type, category, updated_at,
+                       result_id, monitored_item_id, download_id, download_name,
+                       status, completed_at, last_error
                 from grabs
                 order by id desc
                 limit ?
@@ -692,3 +811,25 @@ class Store:
                 (limit,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+
+def _download_identity(response: Any) -> tuple[str | None, str | None]:
+    if not isinstance(response, dict):
+        return None, None
+    for key in ("nzo_id", "id", "download_id", "job_id"):
+        value = response.get(key)
+        if value is not None:
+            return str(value), _str_or_none(response.get("name") or response.get("nzbname"))
+    payload = response.get("response")
+    if isinstance(payload, list) and payload:
+        return _download_identity(payload[0])
+    if isinstance(payload, dict):
+        return _download_identity(payload)
+    return None, _str_or_none(response.get("name") or response.get("nzbname"))
+
+
+def _str_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None

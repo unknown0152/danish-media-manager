@@ -1,5 +1,6 @@
-from app.arr import find_radarr_movie, find_sonarr_series
-from app.models import SearchRequest
+from app.arr import ArrClient, find_radarr_movie, find_sonarr_series
+from app.config import Settings
+from app.models import MetadataResult, SearchRequest
 
 
 def test_find_radarr_movie_prefers_tmdb_id() -> None:
@@ -42,3 +43,47 @@ def test_find_sonarr_series_prefers_tvdb_id() -> None:
 
     assert series
     assert series["id"] == 10
+
+
+def test_arr_rescan_posts_radarr_command(monkeypatch) -> None:
+    requests: list[tuple[str, dict | None]] = []
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    class FakeHttpClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url, **kwargs):
+            requests.append((url, kwargs.get("params")))
+            return FakeResponse([{"id": 42, "title": "Primer", "year": 2004, "tmdbId": 14337}])
+
+        def post(self, url, **kwargs):
+            requests.append((url, kwargs.get("json")))
+            return FakeResponse({"id": 99})
+
+    monkeypatch.setattr("app.arr.httpx.Client", FakeHttpClient)
+    client = ArrClient(Settings(RADARR_API_KEY="radarr-key"))
+
+    assert client.rescan_for_metadata(
+        "movie",
+        MetadataResult(title="Primer", year=2004, tmdb_id="14337"),
+    )
+    assert requests[-1] == (
+        "http://radarr:7878/api/v3/command",
+        {"name": "RescanMovie", "movieId": 42},
+    )

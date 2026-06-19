@@ -41,6 +41,19 @@ class ArrClient:
             return self._ensure_radarr_target(request, target_path, profile_name)
         return self._ensure_sonarr_target(request, target_path, profile_name)
 
+    def rescan_for_metadata(self, media_type: str, metadata: MetadataResult) -> bool:
+        request = SearchRequest(
+            query=f"{metadata.title} {metadata.year}" if metadata.year else metadata.title,
+            media_type="movie" if media_type == "movie" else "tv",
+            expected_year=metadata.year,
+            tmdb_id=metadata.tmdb_id,
+            tvdb_id=metadata.tvdb_id,
+            imdb_id=metadata.imdb_id,
+        )
+        if media_type == "movie":
+            return self._rescan_radarr_movie(request)
+        return self._rescan_sonarr_series(request)
+
     def _radarr_interactive_search(self, request: SearchRequest) -> list[Release] | None:
         if not self.radarr_api_key:
             return None
@@ -205,6 +218,45 @@ class ArrClient:
         )
         response.raise_for_status()
         return True
+
+    def _rescan_radarr_movie(self, request: SearchRequest) -> bool:
+        if not self.radarr_api_key:
+            return False
+        with httpx.Client(timeout=self.timeout) as client:
+            movies = self._get_list(client, self.radarr_url, self.radarr_api_key, "/api/v3/movie")
+            movie = find_radarr_movie(movies, request)
+            movie_id = _int_or_none(movie.get("id")) if movie else None
+            if movie_id is None:
+                return False
+            response = client.post(
+                f"{self.radarr_url}/api/v3/command",
+                headers={"X-Api-Key": self.radarr_api_key},
+                json={"name": "RescanMovie", "movieId": movie_id},
+            )
+            response.raise_for_status()
+            return True
+
+    def _rescan_sonarr_series(self, request: SearchRequest) -> bool:
+        if not self.sonarr_api_key:
+            return False
+        with httpx.Client(timeout=self.timeout) as client:
+            series_items = self._get_list(
+                client,
+                self.sonarr_url,
+                self.sonarr_api_key,
+                "/api/v3/series",
+            )
+            series = find_sonarr_series(series_items, request)
+            series_id = _int_or_none(series.get("id")) if series else None
+            if series_id is None:
+                return False
+            response = client.post(
+                f"{self.sonarr_url}/api/v3/command",
+                headers={"X-Api-Key": self.sonarr_api_key},
+                json={"name": "RescanSeries", "seriesId": series_id},
+            )
+            response.raise_for_status()
+            return True
 
 
 def find_radarr_movie(items: list[dict[str, Any]], request: SearchRequest) -> dict[str, Any] | None:
