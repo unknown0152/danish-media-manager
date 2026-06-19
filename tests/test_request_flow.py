@@ -6,6 +6,7 @@ from app.decision import decide_release
 from app.main import (
     best_release,
     create_scored_request,
+    enrich_search_request,
     grab_cached_result,
     rerun_stored_request_search,
     retry_wanted_requests,
@@ -18,6 +19,7 @@ from app.models import (
     GrabRequest,
     MetadataResult,
     Release,
+    SearchRequest,
     ScoreBreakdown,
 )
 from app.prowlarr import release_sort_key
@@ -273,6 +275,36 @@ def test_create_scored_request_marks_monitored_item_ready(tmp_path) -> None:
     assert item["status"] == "ready"
     assert item["best_result_id"] == release.result_id
     assert item["best_title"] == release.title
+
+
+def test_enrich_search_request_preserves_user_year_over_wrong_metadata() -> None:
+    request = SearchRequest(
+        query="Big Hero 6",
+        media_type="movie",
+        expected_year=2014,
+    )
+
+    enriched = enrich_search_request(
+        request,
+        MetadataResult(title="Big Hero 6", year=2015, tmdb_id="177572"),
+    )
+
+    assert enriched.query == "Big Hero 6 2014"
+    assert enriched.expected_year == 2014
+    assert enriched.tmdb_id == "177572"
+
+
+def test_enrich_search_request_preserves_query_year_over_wrong_metadata() -> None:
+    request = SearchRequest(query="Big Hero 6 2014", media_type="movie")
+
+    enriched = enrich_search_request(
+        request,
+        MetadataResult(title="Big Hero 6", year=2015, tmdb_id="177572"),
+    )
+
+    assert enriched.query == "Big Hero 6 2014"
+    assert enriched.expected_year == 2014
+    assert enriched.tmdb_id == "177572"
 
 
 def test_rerun_stored_request_keeps_stored_metadata_year(tmp_path) -> None:

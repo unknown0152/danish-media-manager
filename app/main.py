@@ -42,8 +42,9 @@ from app.prowlarr import ProwlarrClient, release_from_item, release_sort_key
 from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
+from app.titlematch import parse_year
 
-app = FastAPI(title="Danish Media Manager", version="0.39.0")
+app = FastAPI(title="Danish Media Manager", version="0.39.1")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -510,13 +511,15 @@ def should_mark_seerr_available(media_type: str, title: str | None) -> bool:
 
 
 def enrich_search_request(request: SearchRequest, metadata_result: MetadataResult) -> SearchRequest:
+    user_year = request.expected_year or parse_year(request.query)
+    expected_year = user_year or metadata_result.year
     search_query = metadata_result.title or request.query
-    if metadata_result.year and str(metadata_result.year) not in search_query:
-        search_query = f"{search_query} {metadata_result.year}"
+    if expected_year and str(expected_year) not in search_query:
+        search_query = f"{search_query} {expected_year}"
     return request.model_copy(
         update={
             "query": search_query,
-            "expected_year": metadata_result.year or request.expected_year,
+            "expected_year": expected_year,
             "tmdb_id": metadata_result.tmdb_id,
             "tvdb_id": metadata_result.tvdb_id,
             "imdb_id": metadata_result.imdb_id,
