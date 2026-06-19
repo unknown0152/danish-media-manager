@@ -1,6 +1,6 @@
 [project]
 name = "danish-media-manager"
-version = "0.36.0"
+version = "0.36.1"
 description = "Side-app for Danish release search, scoring, and AltMount download handoff."
 requires-python = ">=3.11"
 dependencies = [

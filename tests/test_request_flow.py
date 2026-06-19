@@ -3,7 +3,14 @@ from fastapi import HTTPException
 
 from app.config import Settings
 from app.decision import decide_release
-from app.main import best_release, grab_cached_result, retry_wanted_requests, sync_altmount_completions
+from app.main import (
+    best_release,
+    create_scored_request,
+    grab_cached_result,
+    rerun_stored_request_search,
+    retry_wanted_requests,
+    sync_altmount_completions,
+)
 from app.models import (
     Decision,
     DownloadItem,
@@ -59,6 +66,21 @@ class StaticSearchClient:
 
     def search(self, request):
         return self.releases
+
+
+class RecordingSearchClient(StaticSearchClient):
+    def __init__(self, releases: list[Release]) -> None:
+        super().__init__(releases)
+        self.requests = []
+
+    def search(self, request):
+        self.requests.append(request)
+        return self.releases
+
+
+class WrongYearMetadata:
+    def lookup(self, query: str, media_type: str) -> MetadataResult:
+        return MetadataResult(title="Big Hero 6", year=2015, tmdb_id="177572")
 
 
 class ReadyArr:
@@ -202,6 +224,76 @@ def test_grab_cached_result_links_grab_to_monitored_item(tmp_path) -> None:
     assert "payload" not in grabs[0]
     assert "response" not in grabs[0]
     assert items[0]["status"] == "grabbed"
+
+
+def test_create_scored_request_marks_monitored_item_ready(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    release = _manual_release(
+        title="Big.Hero.6.2014.NORDiC.ENG.2160p.WEB-DL.HDR.H.265-TWA",
+        accepted=True,
+        score=9000,
+        resolution="2160p",
+        source="web-dl",
+        size=20_000_000_000,
+    )
+
+    response = create_scored_request(
+        query="Big Hero 6 2014",
+        media_type="movie",
+        min_resolution="1080p",
+        limit=100,
+        target_path="/media/kids-movies",
+        settings=Settings(),
+        metadata_result=MetadataResult(title="Big Hero 6", year=2014, tmdb_id="177572"),
+        di_client=StaticSearchClient([release]),  # type: ignore[arg-type]
+        prowlarr_client=EmptySearchClient(),  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    item = store.monitored_items_for_request(response.request.id)[0]
+    assert response.request.status == "ready"
+    assert response.request.target_path == "/media/kids-movies"
+    assert item["status"] == "ready"
+    assert item["best_result_id"] == release.result_id
+    assert item["best_title"] == release.title
+
+
+def test_rerun_stored_request_keeps_stored_metadata_year(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    row = store.create_media_request(
+        "Big Hero 6 2014",
+        "movie",
+        min_resolution="1080p",
+        metadata=MetadataResult(title="Big Hero 6", year=2014, tmdb_id="177572"),
+        external_source="seerr",
+        external_id="19",
+    )
+    release = _manual_release(
+        title="Big.Hero.6.2014.NORDiC.ENG.2160p.WEB-DL.HDR.H.265-TWA",
+        accepted=True,
+        score=9000,
+        resolution="2160p",
+        source="web-dl",
+        size=20_000_000_000,
+    )
+    di = RecordingSearchClient([release])
+
+    response = rerun_stored_request_search(
+        row,
+        metadata_client=WrongYearMetadata(),  # type: ignore[arg-type]
+        di_client=di,  # type: ignore[arg-type]
+        prowlarr_client=EmptySearchClient(),  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    item = store.monitored_items_for_request(row["id"])[0]
+    assert di.requests[0].expected_year == 2014
+    assert "2014" in di.requests[0].query
+    assert response.request.status == "ready"
+    assert response.search.metadata is not None
+    assert response.search.metadata.year == 2014
+    assert item["status"] == "ready"
+    assert item["best_title"] == release.title
 
 
 def test_completion_sync_marks_grab_import_pending_and_triggers_arr_rescan(tmp_path) -> None:

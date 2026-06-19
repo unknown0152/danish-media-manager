@@ -41,7 +41,7 @@ from app.seerr import SeerrClient, seerr_media_type, seerr_request_id
 from app.store import Store
 from app.targets import all_targets, exact_target_for_path, target_for_path
 
-app = FastAPI(title="Danish Media Manager", version="0.36.0")
+app = FastAPI(title="Danish Media Manager", version="0.36.1")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 TV_EPISODE_RE = re.compile(r"\bS\d{1,2}E\d{1,3}\b", re.IGNORECASE)
@@ -239,6 +239,7 @@ def create_scored_request(
     )
     if not updated:
         raise HTTPException(status_code=500, detail="Request disappeared after creation")
+    _mark_best_monitored_item(request_store, updated, best)
     _expand_tv_items_from_metadata(
         request_store=request_store,
         request_id=request_id,
@@ -268,9 +269,7 @@ def rerun_stored_request_search(
         min_resolution=str(row.get("min_resolution") or "any"),  # type: ignore[arg-type]
         expected_year=row.get("metadata_year") if isinstance(row.get("metadata_year"), int) else None,
     )
-    metadata_result = metadata_client.lookup(search_request.query, search_request.media_type)
-    if not metadata_result:
-        metadata_result = _metadata_from_row(row)
+    metadata_result = _stored_metadata_with_lookup(row, metadata_client, search_request)
     if metadata_result:
         search_request = enrich_search_request(search_request, metadata_result)
     try:
@@ -304,6 +303,7 @@ def rerun_stored_request_search(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Request not found")
+    _mark_best_monitored_item(request_store, updated, best)
     return MediaRequestResponse(
         request=MediaRequest.model_validate(updated),
         search=search_response,
@@ -915,6 +915,22 @@ def _monitored_item_for_row(
     )
 
 
+def _mark_best_monitored_item(
+    request_store: Store,
+    row: dict[str, object],
+    release: Release | None,
+) -> None:
+    if release is None:
+        return
+    matched_item = _monitored_item_for_row(request_store, row, release)
+    if matched_item:
+        request_store.mark_monitored_item_feed_matched(
+            int(matched_item["id"]),
+            result_id=release.result_id,
+            title=release.title,
+        )
+
+
 def _parse_release_tv_scope(title: str) -> tuple[int | None, int | None]:
     episode_match = TV_EPISODE_NUM_RE.search(title)
     if episode_match:
@@ -1386,7 +1402,33 @@ def _metadata_from_row(row: dict[str, object]) -> MetadataResult | None:
         imdb_id=row.get("metadata_imdb_id")
         if isinstance(row.get("metadata_imdb_id"), str)
         else None,
+        external_id=row.get("external_id") if isinstance(row.get("external_id"), str) else None,
         source="stored",
+    )
+
+
+def _stored_metadata_with_lookup(
+    row: dict[str, object],
+    metadata_client: MetadataClient,
+    search_request: SearchRequest,
+) -> MetadataResult | None:
+    stored = _metadata_from_row(row)
+    looked_up = metadata_client.lookup(search_request.query, search_request.media_type)
+    if not stored:
+        return looked_up
+    if not looked_up:
+        return stored
+    return MetadataResult(
+        title=stored.title or looked_up.title,
+        year=stored.year or looked_up.year,
+        overview=looked_up.overview,
+        poster_url=stored.poster_url or looked_up.poster_url,
+        source=stored.source,
+        external_id=stored.external_id or looked_up.external_id,
+        tmdb_id=stored.tmdb_id or looked_up.tmdb_id,
+        tvdb_id=stored.tvdb_id or looked_up.tvdb_id,
+        imdb_id=stored.imdb_id or looked_up.imdb_id,
+        tv_seasons=looked_up.tv_seasons or stored.tv_seasons,
     )
 
 
