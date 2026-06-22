@@ -894,8 +894,14 @@ def sync_altmount_completions(
                     _set_grab_item_status(request_store, grab, "failed")
                     result.failed += 1
                     continue
-                request_store.update_grab_status(grab_id, status="import_pending", completed=True)
-                _set_grab_item_status(request_store, grab, "import_pending")
+                imported = _arr_has_media_file_for_grab(
+                    grab,
+                    arr_client=arr_client,
+                    request_store=request_store,
+                )
+                next_status = "completed" if imported else "import_pending"
+                request_store.update_grab_status(grab_id, status=next_status, completed=True)
+                _set_grab_item_status(request_store, grab, next_status)
                 if _trigger_arr_rescan_for_grab(
                     grab,
                     settings=settings,
@@ -909,6 +915,30 @@ def sync_altmount_completions(
         except Exception as exc:
             result.errors.append(f"Grab {grab_id}: {exc}")
     return result
+
+
+def _arr_has_media_file_for_grab(
+    grab: dict[str, object],
+    *,
+    arr_client: ArrClient,
+    request_store: Store,
+) -> bool:
+    item_id = _int_or_none(grab.get("monitored_item_id"))
+    if item_id is None:
+        return False
+    item = request_store.get_monitored_item(item_id)
+    if not item:
+        return False
+    row = request_store.get_media_request(int(item["request_id"]))
+    if not row:
+        return False
+    metadata_result = _metadata_from_row(row)
+    if not metadata_result:
+        return False
+    if not arr_client.has_media_file(str(row["media_type"]), metadata_result):
+        return False
+    request_store.set_media_request_status(int(row["id"]), "completed")
+    return True
 
 
 def _download_maps(items: list[DownloadItem]) -> tuple[dict[str, DownloadItem], dict[str, DownloadItem]]:

@@ -93,9 +93,20 @@ class ReadyArr:
 class RecordingArr(ReadyArr):
     def __init__(self) -> None:
         self.rescans: list[tuple[str, MetadataResult]] = []
+        self.media_files: list[tuple[str, MetadataResult]] = []
 
     def rescan_for_metadata(self, media_type: str, metadata: MetadataResult) -> bool:
         self.rescans.append((media_type, metadata))
+        return True
+
+    def has_media_file(self, media_type: str, metadata: MetadataResult) -> bool:
+        self.media_files.append((media_type, metadata))
+        return False
+
+
+class ImportedArr(RecordingArr):
+    def has_media_file(self, media_type: str, metadata: MetadataResult) -> bool:
+        self.media_files.append((media_type, metadata))
         return True
 
 
@@ -398,9 +409,68 @@ def test_completion_sync_marks_grab_import_pending_and_triggers_arr_rescan(tmp_p
     assert grabs[0]["completed_at"] is not None
     assert updated_item is not None
     assert updated_item["status"] == "import_pending"
+    assert arr.media_files[0][0] == "movie"
     assert arr.rescans[0][0] == "movie"
     assert arr.rescans[0][1].title == "Primer"
     assert arr.rescans[0][1].tmdb_id == "14337"
+
+
+def test_completion_sync_marks_imported_grab_completed_when_arr_has_file(tmp_path) -> None:
+    store = Store(str(tmp_path / "test.db"))
+    request = store.create_media_request(
+        "Moana 2 2024",
+        "movie",
+        metadata=MetadataResult(title="Moana 2", year=2024, tmdb_id="1241982"),
+    )
+    item = store.monitored_items_for_request(request["id"])[0]
+    release = _manual_release(
+        title="Moana.2.2024.NORDiC.ENG.REMUX.2160p",
+        accepted=True,
+        score=9000,
+        resolution="2160p",
+        source="bluray",
+        size=40_000_000_000,
+    )
+    store.cache_release("Moana 2 2024", "movie", release, request_id=request["id"])
+    grab_cached_result(
+        GrabRequest(title=release.title, media_type="movie", result_id=release.result_id),
+        altmount_client=RecordingAltMount(),  # type: ignore[arg-type]
+        request_store=store,
+        settings=Settings(),
+    )
+    arr = ImportedArr()
+
+    result = sync_altmount_completions(
+        settings=Settings(),
+        altmount_client=StaticDownloadsAltMount(
+            DownloadStatus(
+                status="Idle",
+                queue=[],
+                history=[
+                    DownloadItem(
+                        id="done-1",
+                        name=release.title,
+                        status="Completed",
+                        category="movies",
+                    )
+                ],
+            )
+        ),  # type: ignore[arg-type]
+        arr_client=arr,  # type: ignore[arg-type]
+        request_store=store,
+    )
+
+    grabs = store.recent_grabs()
+    updated_item = store.get_monitored_item(item["id"])
+    updated_request = store.get_media_request(request["id"])
+    assert result.completed == 1
+    assert result.rescans_triggered == 1
+    assert grabs[0]["status"] == "completed"
+    assert updated_item is not None
+    assert updated_item["status"] == "completed"
+    assert updated_request is not None
+    assert updated_request["status"] == "completed"
+    assert arr.media_files[0][1].tmdb_id == "1241982"
 
 
 def test_completion_sync_matches_altmount_history_by_download_id(tmp_path) -> None:

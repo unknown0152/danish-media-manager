@@ -34,7 +34,7 @@ services:
     volumes:
       - ./data:/data
       - /mnt:/mnt:ro,rshared
-      - /media:/media:ro
+      - /srv/media:/media:ro
     networks:
       - media-stack
     ports:
