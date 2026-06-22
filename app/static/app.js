@@ -432,6 +432,10 @@ function renderResults() {
     const verdict = release.score?.verdict || "weak";
     const qualityLabel = quality || "unknown quality";
     const releaseIndexer = release.indexer || "unknown indexer";
+    const bestBadge =
+      state.currentRequest?.best_result_id === release.result_id
+        ? `<span class="best-tag">BEST</span>`
+        : "";
     item.innerHTML = `
       <div class="score ${verdict}">
         <small>Score</small>
@@ -443,7 +447,7 @@ function renderResults() {
             ? `<div class="badge">Best pick</div>`
             : ""
         }
-        <div class="title">${escapeHtml(release.title)}</div>
+        <div class="title">${bestBadge}${escapeHtml(release.title)}</div>
         <div class="release-meta">
           <span>${escapeHtml(releaseIndexer)}</span>
           <span>${escapeHtml(year)}</span>
