@@ -16,6 +16,7 @@ from app.models import (
     Release,
     SearchRequest,
 )
+from app.indexer_capabilities import apply_indexer_attrs_to_quality
 from app.quality import parse_quality
 from app.scoring import score_release
 from app.titlematch import match_title
@@ -383,13 +384,20 @@ def release_from_item(
     size = _int_or_none(item.get("size"))
     download_url = _str_or_none(item.get("downloadUrl") or item.get("downloadUrlMagnet"))
     result_id = _result_id(title, _str_or_none(item.get("guid")), download_url)
+    indexer = str(item.get("indexer") or item.get("indexerName") or "Unknown")
+    indexer_attrs = _attrs_from_item(item)
     quality = parse_quality(title)
-    score = score_release(title, size)
+    quality = apply_indexer_attrs_to_quality(
+        quality,
+        indexer_name=indexer,
+        attrs=indexer_attrs,
+    )
+    score = score_release(title, size, quality=quality)
     title_match = match_title(query, title, expected_year=expected_year)
     return Release(
         result_id=result_id,
         title=title,
-        indexer=str(item.get("indexer") or item.get("indexerName") or "Unknown"),
+        indexer=indexer,
         protocol=item.get("protocol"),
         age=_int_or_none(item.get("age")),
         size=size,
@@ -397,7 +405,7 @@ def release_from_item(
         download_url=download_url,
         indexer_id=_int_or_none(item.get("indexerId")),
         categories=item.get("categories") if isinstance(item.get("categories"), list) else [],
-        indexer_attrs=_attrs_from_item(item),
+        indexer_attrs=indexer_attrs,
         quality=quality,
         title_match=title_match,
         raw=item,

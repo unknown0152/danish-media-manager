@@ -1,11 +1,9 @@
-from app.quality import parse_quality
+from app.quality import QualityInfo, parse_quality
 
 from app.models import ScoreBreakdown
 
 
-def score_release(title: str, size: int | None = None) -> ScoreBreakdown:
-    quality = parse_quality(title)
-
+def score_quality(quality: QualityInfo, size: int | None = None) -> ScoreBreakdown:
     score = 0
     reasons: list[str] = []
 
@@ -110,3 +108,12 @@ def score_release(title: str, size: int | None = None) -> ScoreBreakdown:
         verdict = "weak"
 
     return ScoreBreakdown(score=score, verdict=verdict, reasons=reasons or ["No Danish signals"])
+
+
+def score_release(
+    title: str,
+    size: int | None = None,
+    *,
+    quality: QualityInfo | None = None,
+) -> ScoreBreakdown:
+    return score_quality(quality or parse_quality(title), size)

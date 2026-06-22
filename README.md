@@ -11,6 +11,7 @@ Sonarr, Prowlarr, AltMount, or the existing all-in-one stack.
 - Look up lightweight metadata for exact year matching; use Seerr, Radarr, Sonarr, or TMDB for posters/overview when configured.
 - Use Radarr/Sonarr metadata IDs to improve matching, while keeping Danish Intelligence/Prowlarr as the primary release-search path.
 - Score releases with visible Danish-audio/subtitle reasoning.
+- Use trusted raw indexer attributes for Danish audio/subtitle detection when the indexer exposes them.
 - Treat plain `NORDiC` releases as likely Danish subtitles.
 - Parse quality fields separately from scoring: resolution, source, codec, audio.
 - Parse HDR details including DV and HDR10+.

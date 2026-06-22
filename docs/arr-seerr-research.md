@@ -158,9 +158,11 @@ DMM should become:
 - Implemented in v0.33.0: DMM now stores TV season/episode scope, preserves Seerr season details, records feed sync runs, and applies season/episode scope during TV feed matching.
 - Implemented in v0.34.0: DMM now creates first-class monitored child items for movies, TV series, seasons, and episodes. Feed sync updates the matching child item so a wanted-board UI can show item-level status instead of only request-level status.
 - Implemented in v0.35.0: DMM now carries optional TV season metadata from Sonarr, TMDB, and Seerr, and expands scoped season requests into episode monitored items when episode counts are available.
+- Implemented after raw indexer probing: DMM now applies a per-indexer capability policy before scoring releases. NZB.life is trusted for `audio`, `language`, and `subs`; NZBgeek and SceneNZBs are trusted for `language` and `subs`; abNZB and NZBFinder are trusted for `subs`; AltHUB and msgnews are marked as NFO-enrichment candidates via `t=getnfo` with the Newznab attr guid; DrunkenSlug's JSON `language` field is treated as feed/channel metadata and ignored for release language; NinjaCentral is not used for language enrichment.
 
 ## Remaining gaps after v0.35.0
 
 - TV now has monitored item rows and optional episode expansion. To fully match Sonarr, DMM still needs air-date eligibility, queued/downloaded state, and cutoff-unmet tracking.
 - Recent-feed sync currently uses title/year matching. Stronger TMDB/TVDB/IMDB matching depends on indexers exposing enough attributes or DMM building richer parsing.
 - Feed history is not yet persisted per indexer, so DMM can report current failures but not exact "last successful RSS window" coverage like Arrs do.
+- Direct NFO enrichment is recorded as capability metadata but not yet active in the normal search path. When implemented, it should only use indexers where the raw probes proved the endpoint works and should cache negative NFO responses.
