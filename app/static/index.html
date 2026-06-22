@@ -8,10 +8,10 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="app-shell command-shell">
+    <div class="app-shell dmm-shell">
       <a class="sr-only" href="#main-content">Skip to content</a>
 
-      <header class="command-bar">
+      <aside class="app-sidebar" aria-label="Danish Media Manager navigation">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">DM</div>
           <div class="brand-copy">
@@ -20,26 +20,60 @@
           </div>
         </div>
 
-        <nav class="workspace-tabs" aria-label="Primary navigation">
-          <a class="active" href="#main-content">Desk</a>
-          <a href="#requests">Wanted</a>
-          <a href="#resultsPanel">Results</a>
-          <a href="#downloads">Transfers</a>
-          <a href="#prowlarrHealth">Health</a>
+        <nav class="side-nav" aria-label="Primary navigation">
+          <button class="nav-item is-active" type="button" data-view-target="dashboard">
+            <span class="nav-icon" aria-hidden="true">01</span>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="wanted">
+            <span class="nav-icon" aria-hidden="true">02</span>
+            <span>Wanted</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="search">
+            <span class="nav-icon" aria-hidden="true">03</span>
+            <span>Search</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="downloads">
+            <span class="nav-icon" aria-hidden="true">04</span>
+            <span>Downloads</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="indexers">
+            <span class="nav-icon" aria-hidden="true">05</span>
+            <span>Indexers</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="health">
+            <span class="nav-icon" aria-hidden="true">06</span>
+            <span>Health</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="activity">
+            <span class="nav-icon" aria-hidden="true">07</span>
+            <span>Activity</span>
+          </button>
         </nav>
 
-        <div class="command-actions">
+        <div class="sidebar-tools">
           <div class="mode-switch" aria-label="Theme switcher">
             <button class="is-active" type="button" data-set-theme="dark">Dark</button>
             <button type="button" data-set-theme="light">Light</button>
           </div>
-          <button id="retryWanted" class="btn" type="button">Retry wanted</button>
-          <button class="btn primary" type="submit" form="searchForm">Search</button>
+          <button id="retryWanted" class="btn full-width" type="button">Retry wanted</button>
         </div>
-      </header>
+      </aside>
 
-      <main class="content command-desk" id="main-content">
-        <section class="status-ribbon" id="search" aria-label="Operational status">
+      <main class="main-workspace" id="main-content">
+        <header class="workspace-header">
+          <div>
+            <span class="eyebrow">Operations Console</span>
+            <h2 id="viewTitle">Dashboard</h2>
+            <p id="viewSubtitle">Service state, wanted queue, transfers, and indexer health.</p>
+          </div>
+          <div class="workspace-actions">
+            <button id="refreshQueue" class="btn" type="button">Refresh queue</button>
+            <button class="btn primary" type="submit" form="searchForm">Search</button>
+          </div>
+        </header>
+
+        <section class="status-ribbon" aria-label="Operational status">
           <article class="metric-card">
             <span>Services</span>
             <strong id="serviceMetricCard">2 / 2</strong>
@@ -62,28 +96,54 @@
           </article>
         </section>
 
-        <section class="desk-grid">
-          <aside class="queue-column">
-            <section class="desk-panel wanted-panel">
+        <section class="view-panel is-active" data-view="dashboard">
+          <div class="dashboard-layout">
+            <section class="desk-panel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Services</span>
+                  <h3>Stack Status</h3>
+                </div>
+                <span class="pill" id="serviceMetric">Checking</span>
+              </div>
+              <div id="serviceStrip" class="service-strip" aria-label="Service status"></div>
+            </section>
+
+            <section class="desk-panel wanted-preview">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Wanted</span>
+                  <h3>Requests</h3>
+                </div>
+                <strong id="requestMetric" class="counter-chip">0</strong>
+              </div>
+              <div class="preview-note">Open the Wanted view for full request controls.</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view-panel" data-view="wanted">
+          <div class="view-grid single">
+            <section class="desk-panel">
               <div class="section-head">
                 <div>
                   <span class="eyebrow">Wanted Board</span>
                   <h3>Request Queue</h3>
                 </div>
-                <strong id="requestMetric" class="counter-chip">0</strong>
+                <button class="btn" type="button" data-view-target="search">New search</button>
               </div>
               <div id="requests" class="requests list-stack"></div>
             </section>
+          </div>
+        </section>
 
-            <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
-          </aside>
-
-          <section class="work-column">
-            <section class="search-console">
+        <section class="view-panel" data-view="search">
+          <div class="view-grid single">
+            <section class="desk-panel search-console">
               <div class="console-head">
                 <div>
                   <span class="eyebrow">Search Console</span>
-                  <h2>Find the best Danish-ready release</h2>
+                  <h3>Find the best Danish-ready release</h3>
                 </div>
                 <label class="filter-toggle pill">
                   <input id="acceptedOnly" type="checkbox" />
@@ -129,7 +189,6 @@
                   <h3>Ranked Results</h3>
                 </div>
                 <div class="pill-row">
-                  <span class="pill" id="serviceMetric">Checking</span>
                   <span class="pill" id="indexerMetric">Indexers</span>
                   <span class="pill" id="queueMetric">Queue</span>
                 </div>
@@ -155,23 +214,24 @@
                 </div>
               </div>
             </section>
-          </section>
+          </div>
+        </section>
 
-          <aside class="systems-column">
+        <section class="view-panel" data-view="downloads">
+          <div class="view-grid two">
             <section class="desk-panel">
-              <div class="section-head compact-head">
+              <div class="section-head">
                 <div>
                   <span class="eyebrow">Transfers</span>
-                  <h3>AltMount</h3>
+                  <h3>AltMount Queue</h3>
                 </div>
                 <strong id="queueMetricMini" class="counter-chip">Idle</strong>
               </div>
-              <button id="refreshQueue" class="btn full-width" type="button">Refresh queue</button>
               <div id="downloads" class="downloads list-stack"></div>
             </section>
 
             <section class="desk-panel">
-              <div class="section-head compact-head">
+              <div class="section-head">
                 <div>
                   <span class="eyebrow">Import</span>
                   <h3>Paths</h3>
@@ -179,9 +239,13 @@
               </div>
               <div id="importHealth" class="health list-stack"></div>
             </section>
+          </div>
+        </section>
 
+        <section class="view-panel" data-view="indexers">
+          <div class="view-grid single">
             <section class="desk-panel">
-              <div class="section-head compact-head">
+              <div class="section-head">
                 <div>
                   <span class="eyebrow">Indexers</span>
                   <h3>Prowlarr</h3>
@@ -190,9 +254,13 @@
               </div>
               <div id="indexers" class="grabs list-stack"></div>
             </section>
+          </div>
+        </section>
 
+        <section class="view-panel" data-view="health">
+          <div class="view-grid single">
             <section class="desk-panel" id="prowlarrHealthPanel">
-              <div class="section-head compact-head">
+              <div class="section-head">
                 <div>
                   <span class="eyebrow">Diagnostics</span>
                   <h3>Health</h3>
@@ -200,9 +268,13 @@
               </div>
               <div id="prowlarrHealth" class="health list-stack"></div>
             </section>
+          </div>
+        </section>
 
+        <section class="view-panel" data-view="activity">
+          <div class="view-grid single">
             <section class="desk-panel">
-              <div class="section-head compact-head">
+              <div class="section-head">
                 <div>
                   <span class="eyebrow">Activity</span>
                   <h3>Recent Grabs</h3>
@@ -210,7 +282,7 @@
               </div>
               <div id="grabs" class="grabs list-stack"></div>
             </section>
-          </aside>
+          </div>
         </section>
       </main>
     </div>

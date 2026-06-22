@@ -41,6 +41,58 @@ const queryInput = document.querySelector("#query");
 const minResolutionInput = document.querySelector("#minResolution");
 const targetPathInput = document.querySelector("#targetPath");
 const acceptedOnlyInput = document.querySelector("#acceptedOnly");
+const viewTitleEl = document.querySelector("#viewTitle");
+const viewSubtitleEl = document.querySelector("#viewSubtitle");
+
+const viewCopy = {
+  dashboard: {
+    title: "Dashboard",
+    subtitle: "Service state, wanted queue, transfers, and indexer health.",
+  },
+  wanted: {
+    title: "Wanted",
+    subtitle: "Requests from Seerr and DMM that still need a matching release.",
+  },
+  search: {
+    title: "Search",
+    subtitle: "Ranked release results with Danish/NORDiC scoring and grab controls.",
+  },
+  downloads: {
+    title: "Downloads",
+    subtitle: "AltMount queue state, history, and import path checks.",
+  },
+  indexers: {
+    title: "Indexers",
+    subtitle: "Enabled Prowlarr sources and current failure state.",
+  },
+  health: {
+    title: "Health",
+    subtitle: "Diagnostics from Prowlarr, import paths, and service checks.",
+  },
+  activity: {
+    title: "Activity",
+    subtitle: "Recent grabs sent through DMM.",
+  },
+};
+
+function setActiveView(view) {
+  const nextView = viewCopy[view] ? view : "dashboard";
+  document.querySelectorAll("[data-view]").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.view === nextView);
+  });
+  document.querySelectorAll("[data-view-target]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.viewTarget === nextView);
+  });
+  viewTitleEl.textContent = viewCopy[nextView].title;
+  viewSubtitleEl.textContent = viewCopy[nextView].subtitle;
+  if (window.location.hash !== `#${nextView}`) {
+    window.history.replaceState(null, "", `#${nextView}`);
+  }
+}
+
+document.querySelectorAll("[data-view-target]").forEach((button) => {
+  button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
+});
 
 document.querySelectorAll(".segmented button").forEach((button) => {
   button.addEventListener("click", () => {
@@ -144,6 +196,7 @@ function renderServiceStrip(status) {
 
 async function search(query) {
   if (!query) return;
+  setActiveView("search");
   renderEmptyState("Searching", "DMM is querying Prowlarr and scoring releases against Danish/NORDiC rules.");
   try {
     const data = await api("/api/search", {
@@ -174,6 +227,7 @@ async function search(query) {
 
 async function createRequest(query) {
   if (!query) return;
+  setActiveView("search");
   renderEmptyState("Creating request", "DMM is storing the request and checking for an immediate match.");
   try {
     const data = await api("/api/requests", {
@@ -668,6 +722,7 @@ async function refreshRequests() {
 
 async function rerunRequestSearch(requestId) {
   try {
+    setActiveView("search");
     renderEmptyState("Searching request", "DMM is rerunning the stored request against current indexer results.");
     const data = await api(`/api/requests/${requestId}/search`, { method: "POST" });
     state.mediaType = data.request.media_type;
@@ -726,6 +781,7 @@ function renderEmptyState(title, message, tone = "neutral") {
   `;
 }
 
+setActiveView(window.location.hash.replace("#", "") || "dashboard");
 loadStatus();
 loadTargets();
 refreshQueue();
