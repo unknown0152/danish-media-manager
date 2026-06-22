@@ -1026,6 +1026,264 @@ p {
   }
 }
 
+/* Command-desk redesign */
+.command-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+}
+
+.command-shell .sidebar,
+.command-shell .hero,
+.command-shell .metrics-grid,
+.command-shell .dashboard-grid,
+.command-shell .top-toolbar,
+.command-shell .footer-note {
+  display: none;
+}
+
+.command-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 70px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--page) 88%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.command-actions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+}
+
+.command-desk {
+  padding: 16px;
+}
+
+.status-ribbon {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.desk-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 350px) minmax(560px, 1fr) minmax(300px, 380px);
+  gap: 12px;
+  align-items: start;
+}
+
+.queue-column,
+.work-column,
+.systems-column {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.desk-panel,
+.search-console {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.desk-panel {
+  padding: 12px;
+}
+
+.search-console {
+  padding: 14px;
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--teal) 10%, transparent), transparent 36%),
+    var(--panel);
+}
+
+.console-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.console-head h2 {
+  font-size: clamp(1.4rem, 2vw, 2.2rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.counter-chip {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.compact-head {
+  align-items: center;
+}
+
+.service-strip {
+  display: grid;
+  gap: 8px;
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.command-shell .workspace-tabs {
+  justify-self: center;
+  width: min(100%, 760px);
+  padding: 5px;
+}
+
+.command-shell .workspace-tabs a {
+  flex: 1 0 auto;
+  justify-content: center;
+}
+
+.command-shell .form-grid {
+  grid-template-columns: minmax(260px, 1fr) 150px minmax(190px, 250px) 118px 136px;
+}
+
+.command-shell .form-grid .search-field,
+.command-shell .form-grid .select-field:last-of-type,
+.command-shell .form-grid .btn.primary,
+.command-shell .form-grid #requestBest {
+  grid-column: auto;
+}
+
+.command-shell .results-head,
+.command-shell .release {
+  grid-template-columns: 72px minmax(0, 1fr) 178px 90px;
+}
+
+.command-shell .request {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.command-shell .request-poster {
+  width: 52px;
+}
+
+.command-shell .download-summary {
+  grid-template-columns: 1fr;
+}
+
+.command-shell .download-summary div {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.command-shell .download-summary div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.command-shell .service-card {
+  padding: 12px;
+}
+
+.command-shell .metadata-card {
+  grid-template-columns: 70px minmax(0, 1fr);
+}
+
+.command-shell .metadata-card img {
+  width: 70px;
+}
+
+@media (max-width: 1500px) {
+  .desk-grid {
+    grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  }
+
+  .systems-column {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .systems-column .desk-panel:nth-child(n + 4) {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 1120px) {
+  .command-bar {
+    position: static;
+    grid-template-columns: 1fr;
+  }
+
+  .command-actions,
+  .command-shell .workspace-tabs {
+    justify-self: stretch;
+  }
+
+  .desk-grid,
+  .systems-column {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-column {
+    order: 2;
+  }
+
+  .work-column {
+    order: 1;
+  }
+
+  .systems-column {
+    order: 3;
+  }
+
+  .status-ribbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .command-desk,
+  .command-bar {
+    padding: 10px;
+  }
+
+  .command-actions,
+  .console-head,
+  .command-shell .workspace-tabs {
+    flex-wrap: wrap;
+  }
+
+  .status-ribbon,
+  .command-shell .form-grid,
+  .command-shell .release,
+  .command-shell .results-head {
+    grid-template-columns: 1fr;
+  }
+
+  .command-shell .results-head {
+    display: none;
+  }
+}
+
 /* Operations-console refresh */
 :root,
 [data-theme="light"] {
@@ -1508,5 +1766,92 @@ body {
 
   .results-head {
     display: none;
+  }
+}
+
+/* Final command-desk authority layer */
+.app-shell.command-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+}
+
+.command-shell .content.command-desk {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.command-shell .command-bar {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) auto;
+}
+
+.command-shell .status-ribbon {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.command-shell .desk-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 350px) minmax(560px, 1fr) minmax(300px, 380px);
+}
+
+.command-shell .queue-column,
+.command-shell .work-column,
+.command-shell .systems-column {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.command-shell .desk-panel,
+.command-shell .search-console {
+  display: block;
+  border-radius: 8px;
+}
+
+.command-shell .form-grid {
+  grid-template-columns: minmax(260px, 1fr) 150px minmax(190px, 250px) 118px 136px;
+}
+
+.command-shell .form-grid .search-field,
+.command-shell .form-grid .select-field:last-of-type,
+.command-shell .form-grid .btn.primary,
+.command-shell .form-grid #requestBest {
+  grid-column: auto;
+}
+
+@media (max-width: 1500px) {
+  .command-shell .desk-grid {
+    grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  }
+
+  .command-shell .systems-column {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1120px) {
+  .command-shell .command-bar,
+  .command-shell .desk-grid,
+  .command-shell .systems-column {
+    grid-template-columns: 1fr;
+  }
+
+  .command-shell .status-ribbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .command-shell .status-ribbon,
+  .command-shell .form-grid,
+  .command-shell .release,
+  .command-shell .download-summary,
+  .command-shell .metadata-card {
+    grid-template-columns: 1fr;
   }
 }

@@ -8,10 +8,10 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <a class="sr-only" href="#main-content">Skip to content</a>
+    <div class="app-shell command-shell">
+      <a class="sr-only" href="#main-content">Skip to content</a>
 
+      <header class="command-bar">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">DM</div>
           <div class="brand-copy">
@@ -20,100 +20,70 @@
           </div>
         </div>
 
-        <div class="mode-switch" aria-label="Theme switcher">
-          <button class="is-active" type="button" data-set-theme="dark">Dark</button>
-          <button type="button" data-set-theme="light">Light</button>
-        </div>
-
-        <nav class="nav-list" aria-label="Primary navigation">
-          <a class="active" href="#search"><span>Overview</span><span>01</span></a>
-          <a href="#searchForm"><span>Search Console</span><span>02</span></a>
-          <a href="#requests"><span>Wanted Board</span><span>03</span></a>
-          <a href="#prowlarrHealth"><span>Health</span><span>04</span></a>
+        <nav class="workspace-tabs" aria-label="Primary navigation">
+          <a class="active" href="#main-content">Desk</a>
+          <a href="#requests">Wanted</a>
+          <a href="#resultsPanel">Results</a>
+          <a href="#downloads">Transfers</a>
+          <a href="#prowlarrHealth">Health</a>
         </nav>
 
-        <section id="serviceStrip" class="sidebar-stack" aria-label="Service status"></section>
-
-        <div class="sidebar-footer">
-          <div class="mini-card">
-            <strong>DMM Console</strong>
-            <span class="panel-subtitle">Search, monitor, grab, and repair from one local surface.</span>
+        <div class="command-actions">
+          <div class="mode-switch" aria-label="Theme switcher">
+            <button class="is-active" type="button" data-set-theme="dark">Dark</button>
+            <button type="button" data-set-theme="light">Light</button>
           </div>
-          <button id="refreshQueue" class="btn" type="button">Refresh queue</button>
+          <button id="retryWanted" class="btn" type="button">Retry wanted</button>
+          <button class="btn primary" type="submit" form="searchForm">Search</button>
         </div>
-      </aside>
+      </header>
 
-      <main class="content" id="main-content">
-        <div class="top-toolbar">
-          <div class="pill-row">
-            <span class="pill" id="serviceMetric">Checking</span>
-            <span class="pill" id="indexerMetric">Indexers</span>
-            <span class="pill" id="queueMetric">Queue</span>
-          </div>
-          <div class="toolbar-group">
-            <button id="retryWanted" class="btn" type="button">Retry wanted</button>
-            <button class="btn primary" type="submit" form="searchForm">New search</button>
-          </div>
-        </div>
-
-        <section class="hero ops-header" id="search">
-          <div class="hero-copy">
-            <span class="eyebrow">Media Operations</span>
-            <h2>Danish release control center</h2>
-            <p id="status">Checking services...</p>
-            <div class="hero-actions">
-              <button class="btn primary" type="submit" form="searchForm">Run live search</button>
-              <a class="btn" href="#requests">Open wanted board</a>
-            </div>
-          </div>
-
-          <div class="hero-side">
-            <div class="kpi-grid" aria-label="Quick stats">
-              <div class="kpi"><span>Requests</span><strong id="requestMetric">0</strong></div>
-              <div class="kpi"><span>Downloads</span><strong id="queueMetricMini">Idle</strong><small id="queueMetricSub">Waiting</small></div>
-              <div class="kpi"><span>Indexers</span><strong id="indexerMetricMini">Unknown</strong><small id="indexerMetricSub">Waiting</small></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="metrics-grid" aria-label="Status metrics">
+      <main class="content command-desk" id="main-content">
+        <section class="status-ribbon" id="search" aria-label="Operational status">
           <article class="metric-card">
             <span>Services</span>
             <strong id="serviceMetricCard">2 / 2</strong>
-            <div class="meta-line">Prowlarr and AltMount readiness</div>
+            <div class="meta-line" id="status">Checking services...</div>
           </article>
           <article class="metric-card">
             <span>Requests</span>
             <strong id="requestMetricCard">0</strong>
-            <div class="meta-line">Wanted and grabbed request state</div>
+            <div class="meta-line" id="requestMetricSub">No request data yet</div>
           </article>
           <article class="metric-card">
             <span>Downloads</span>
             <strong id="queueMetricCard">Idle</strong>
-            <div class="meta-line">Queue, speed, and history</div>
+            <div class="meta-line" id="queueMetricSub">Waiting</div>
           </article>
           <article class="metric-card">
             <span>Indexers</span>
             <strong id="indexerMetricCard">Unknown</strong>
-            <div class="meta-line">Prowlarr diagnostics</div>
+            <div class="meta-line" id="indexerMetricSub">Waiting</div>
           </article>
         </section>
 
-        <div class="workspace-tabs" aria-label="Workspace sections">
-          <a href="#searchForm" class="active">Search Console</a>
-          <a href="#resultsPanel">Release Browser</a>
-          <a href="#requests">Wanted Board</a>
-          <a href="#downloads">Transfers</a>
-          <a href="#prowlarrHealth">Diagnostics</a>
-        </div>
-
-        <section class="dashboard-grid">
-          <div class="panel-stack">
-            <section class="panel">
+        <section class="desk-grid">
+          <aside class="queue-column">
+            <section class="desk-panel wanted-panel">
               <div class="section-head">
                 <div>
-                  <span class="eyebrow">Interactive Search</span>
-                  <h3>Search Console</h3>
+                  <span class="eyebrow">Wanted Board</span>
+                  <h3>Request Queue</h3>
+                </div>
+                <strong id="requestMetric" class="counter-chip">0</strong>
+              </div>
+              <div id="requests" class="requests list-stack"></div>
+            </section>
+
+            <section id="serviceStrip" class="service-strip" aria-label="Service status"></section>
+          </aside>
+
+          <section class="work-column">
+            <section class="search-console">
+              <div class="console-head">
+                <div>
+                  <span class="eyebrow">Search Console</span>
+                  <h2>Find the best Danish-ready release</h2>
                 </div>
                 <label class="filter-toggle pill">
                   <input id="acceptedOnly" type="checkbox" />
@@ -129,7 +99,7 @@
 
                 <form id="searchForm" class="form-grid">
                   <label class="search-field">
-                    <span class="search-icon" aria-hidden="true">/</span>
+                    <span class="search-icon" aria-hidden="true">⌕</span>
                     <input id="query" name="query" placeholder="Search movie or series title" autocomplete="off" required />
                   </label>
 
@@ -146,24 +116,22 @@
                     <select id="targetPath" name="targetPath" aria-label="Target folder"></select>
                   </label>
 
-                  <button class="btn primary" type="submit">Search</button>
+                  <button class="btn primary" type="submit">Run search</button>
                   <button id="requestBest" class="btn" type="button">Request best</button>
                 </form>
-
-                <div class="input-note">Uses DMM scoring, trusted indexer metadata, target folders, and AltMount handoff.</div>
               </div>
             </section>
 
-            <section class="panel" id="resultsPanel">
+            <section class="desk-panel results-board" id="resultsPanel">
               <div class="section-head">
                 <div>
                   <span class="eyebrow">Release Browser</span>
                   <h3>Ranked Results</h3>
                 </div>
                 <div class="pill-row">
-                  <span class="pill">Score</span>
-                  <span class="pill">Quality</span>
-                  <span class="pill">Indexer</span>
+                  <span class="pill" id="serviceMetric">Checking</span>
+                  <span class="pill" id="indexerMetric">Indexers</span>
+                  <span class="pill" id="queueMetric">Queue</span>
                 </div>
               </div>
 
@@ -181,69 +149,62 @@
                     <div>
                       <div class="empty-mark">DM</div>
                       <strong>No active search</strong>
-                      <p class="muted">Run a search or open a wanted request to compare score, quality, indexer metadata, and grab safety.</p>
+                      <p class="muted">Search or open a request to compare release quality, indexer metadata, and grab safety.</p>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
-          </div>
+          </section>
 
-          <aside class="inspector-stack">
-            <section class="inspector">
-              <div class="section-head">
+          <aside class="systems-column">
+            <section class="desk-panel">
+              <div class="section-head compact-head">
                 <div>
-                  <span class="eyebrow">Wanted Board</span>
-                  <h3>Requests</h3>
+                  <span class="eyebrow">Transfers</span>
+                  <h3>AltMount</h3>
                 </div>
+                <strong id="queueMetricMini" class="counter-chip">Idle</strong>
               </div>
-              <div id="requests" class="requests list-stack"></div>
-            </section>
-
-            <section class="inspector">
-              <div class="section-head">
-                <div>
-                  <span class="eyebrow">Transfer State</span>
-                  <h3>Downloads</h3>
-                </div>
-              </div>
+              <button id="refreshQueue" class="btn full-width" type="button">Refresh queue</button>
               <div id="downloads" class="downloads list-stack"></div>
             </section>
 
-            <section class="inspector">
-              <div class="section-head">
+            <section class="desk-panel">
+              <div class="section-head compact-head">
                 <div>
-                  <span class="eyebrow">Import State</span>
-                  <h3>Import Health</h3>
+                  <span class="eyebrow">Import</span>
+                  <h3>Paths</h3>
                 </div>
               </div>
               <div id="importHealth" class="health list-stack"></div>
             </section>
 
-            <section class="inspector">
-              <div class="section-head">
+            <section class="desk-panel">
+              <div class="section-head compact-head">
                 <div>
-                  <span class="eyebrow">Indexer Status</span>
-                  <h3>Indexers</h3>
+                  <span class="eyebrow">Indexers</span>
+                  <h3>Prowlarr</h3>
                 </div>
+                <strong id="indexerMetricMini" class="counter-chip">Unknown</strong>
               </div>
               <div id="indexers" class="grabs list-stack"></div>
             </section>
 
-            <section class="inspector" id="prowlarrHealthPanel">
-              <div class="section-head">
+            <section class="desk-panel" id="prowlarrHealthPanel">
+              <div class="section-head compact-head">
                 <div>
-                  <span class="eyebrow">Prowlarr Health</span>
-                  <h3>Diagnostics</h3>
+                  <span class="eyebrow">Diagnostics</span>
+                  <h3>Health</h3>
                 </div>
               </div>
               <div id="prowlarrHealth" class="health list-stack"></div>
             </section>
 
-            <section class="inspector">
-              <div class="section-head">
+            <section class="desk-panel">
+              <div class="section-head compact-head">
                 <div>
-                  <span class="eyebrow">Recent Activity</span>
+                  <span class="eyebrow">Activity</span>
                   <h3>Recent Grabs</h3>
                 </div>
               </div>
@@ -251,8 +212,6 @@
             </section>
           </aside>
         </section>
-
-        <div class="footer-note">Danish Media Manager live UI built from the uploaded redesign direction.</div>
       </main>
     </div>
     <script src="/static/app.js"></script>
