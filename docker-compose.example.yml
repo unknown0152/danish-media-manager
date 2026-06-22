@@ -2,6 +2,7 @@ services:
   danish-media-manager:
     image: ghcr.io/unknown0152/danish-media-manager:v0.39.2
     container_name: danish-media-manager
+    restart: unless-stopped
     environment:
       PROWLARR_URL: http://prowlarr:9696
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:?set PROWLARR_API_KEY}

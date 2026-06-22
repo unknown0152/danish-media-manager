@@ -2,6 +2,7 @@ services:
   danish-media-manager:
     build: .
     container_name: danish-media-manager
+    restart: unless-stopped
     environment:
       PROWLARR_URL: http://prowlarr:9696
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:?set PROWLARR_API_KEY}
