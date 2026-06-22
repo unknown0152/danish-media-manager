@@ -183,6 +183,8 @@ The container expects to be on the same Docker network as `prowlarr` and
 | `SEERR_ACTIVE_SEARCH_ON_IMPORT` | `true` | Run full active search immediately when importing a new Seerr request; set false for low API-call operation |
 | `RECENT_FEED_SYNC_ENABLED` | `true` | Watch recent Prowlarr movie/TV feeds and match them against monitored requests |
 | `RECENT_FEED_LIMIT` | `500` | Max recent Prowlarr releases fetched per media type each cycle |
+| `MOVIE_SEARCH_CATEGORIES` | `2010,2030,2040,2045,2050,2070,2080,2090` | Prowlarr movie categories used for active search and recent-feed sync; excludes broad parent/Other/3D by default |
+| `TV_SEARCH_CATEGORIES` | `5010,5020,5030,5040,5045,5050,5080,5090` | Prowlarr TV categories used for active search and recent-feed sync; excludes broad parent/Sport/Anime by default |
 | `MONITORED_REQUESTS_MAX_PER_CYCLE` | `100` | Max monitored DMM requests checked against the recent feed each cycle |
 | `ALTMOUNT_URL` | `http://danish-intelligence:9699/altmount` | SAB-compatible AltMount proxy URL |
 | `ALTMOUNT_API_KEY` | empty | AltMount/SAB API key |

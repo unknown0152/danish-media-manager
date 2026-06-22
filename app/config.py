@@ -34,6 +34,14 @@ class Settings(BaseSettings):
         alias="RECENT_FEED_SYNC_INTERVAL_SECONDS",
     )
     recent_feed_limit: int = Field(default=500, alias="RECENT_FEED_LIMIT")
+    movie_search_categories: str = Field(
+        default="2010,2030,2040,2045,2050,2070,2080,2090",
+        alias="MOVIE_SEARCH_CATEGORIES",
+    )
+    tv_search_categories: str = Field(
+        default="5010,5020,5030,5040,5045,5050,5080,5090",
+        alias="TV_SEARCH_CATEGORIES",
+    )
     monitored_requests_max_per_cycle: int = Field(
         default=100,
         alias="MONITORED_REQUESTS_MAX_PER_CYCLE",

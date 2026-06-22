@@ -80,7 +80,7 @@ class ProwlarrClient:
         if not self.api_key:
             raise RuntimeError("PROWLARR_API_KEY is not set")
 
-        params = search_params(request)
+        params = search_params(request, self.settings)
 
         started = time.perf_counter()
         status_code: int | None = None
@@ -143,7 +143,7 @@ class ProwlarrClient:
             try:
                 resp = client.get(
                     f"{self.base_url}/api/v1/search",
-                    params=recent_search_params(media_type, safe_limit),
+                    params=recent_search_params(media_type, safe_limit, self.settings),
                     headers={"X-Api-Key": self.api_key},
                 )
                 status_code = resp.status_code
@@ -435,30 +435,60 @@ def _attrs_from_item(item: dict[str, Any]) -> dict[str, list[Any]]:
     return normalized
 
 
-def search_params(request: SearchRequest) -> dict[str, Any]:
+DEFAULT_MOVIE_SEARCH_CATEGORIES = "2010,2030,2040,2045,2050,2070,2080,2090"
+DEFAULT_TV_SEARCH_CATEGORIES = "5010,5020,5030,5040,5045,5050,5080,5090"
+
+
+def search_params(request: SearchRequest, settings: Settings | None = None) -> dict[str, Any]:
     return {
         "query": request.query,
         "type": request.media_type,
         "limit": request.limit,
-        "categories": "2000" if request.media_type == "movie" else "5000",
+        "categories": search_categories(request.media_type, settings),
     }
 
 
-def recent_search_params(media_type: str, limit: int) -> dict[str, Any]:
+def recent_search_params(
+    media_type: str,
+    limit: int,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
     if media_type == "movie":
         search_type = "movie"
-        category = "2000"
     elif media_type == "tv":
         search_type = "tvsearch"
-        category = "5000"
     else:
         raise ValueError(f"Unsupported media type for recent feed: {media_type}")
     return {
         "query": "",
         "type": search_type,
         "limit": max(1, min(limit, 500)),
-        "categories": category,
+        "categories": search_categories(media_type, settings),
     }
+
+
+def search_categories(media_type: str, settings: Settings | None = None) -> str:
+    if media_type == "movie":
+        raw = settings.movie_search_categories if settings else DEFAULT_MOVIE_SEARCH_CATEGORIES
+        fallback = DEFAULT_MOVIE_SEARCH_CATEGORIES
+    elif media_type == "tv":
+        raw = settings.tv_search_categories if settings else DEFAULT_TV_SEARCH_CATEGORIES
+        fallback = DEFAULT_TV_SEARCH_CATEGORIES
+    else:
+        raise ValueError(f"Unsupported media type for categories: {media_type}")
+    categories = _normalize_category_list(raw)
+    return categories or fallback
+
+
+def _normalize_category_list(raw: str) -> str:
+    categories: list[str] = []
+    for part in raw.split(","):
+        value = part.strip()
+        if not value or not value.isdigit():
+            continue
+        if value not in categories:
+            categories.append(value)
+    return ",".join(categories)
 
 
 RESOLUTION_RANK = {

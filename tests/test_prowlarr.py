@@ -1,3 +1,4 @@
+from app.config import Settings
 from app.models import IndexerStatus, SearchRequest
 from app.prowlarr import diagnostics_from_payloads, recent_search_params, search_params
 
@@ -55,14 +56,49 @@ def test_search_params_include_subcategories_but_not_arr_ids() -> None:
 
     assert "tmdbId" not in params
     assert "imdbId" not in params
-    assert params["categories"] == "2000"
+    assert params["categories"] == "2010,2030,2040,2045,2050,2070,2080,2090"
 
     tv_params = search_params(
         SearchRequest(query="The Last of Us 2023", media_type="tv", tvdb_id="392256")
     )
 
     assert "tvdbId" not in tv_params
-    assert tv_params["categories"] == "5000"
+    assert tv_params["categories"] == "5010,5020,5030,5040,5045,5050,5080,5090"
+
+
+def test_search_params_allow_category_overrides() -> None:
+    settings = Settings(
+        MOVIE_SEARCH_CATEGORIES="2040,2045,2045,bad, 2050",
+        TV_SEARCH_CATEGORIES="5040,5045,5070",
+    )
+
+    movie_params = search_params(
+        SearchRequest(query="The Batman 2022", media_type="movie"),
+        settings,
+    )
+    tv_params = search_params(
+        SearchRequest(query="The Last of Us 2023", media_type="tv"),
+        settings,
+    )
+
+    assert movie_params["categories"] == "2040,2045,2050"
+    assert tv_params["categories"] == "5040,5045,5070"
+
+
+def test_invalid_category_overrides_fall_back_to_defaults() -> None:
+    settings = Settings(MOVIE_SEARCH_CATEGORIES="bad", TV_SEARCH_CATEGORIES="")
+
+    movie_params = search_params(
+        SearchRequest(query="The Batman 2022", media_type="movie"),
+        settings,
+    )
+    tv_params = search_params(
+        SearchRequest(query="The Last of Us 2023", media_type="tv"),
+        settings,
+    )
+
+    assert movie_params["categories"] == "2010,2030,2040,2045,2050,2070,2080,2090"
+    assert tv_params["categories"] == "5010,5020,5030,5040,5045,5050,5080,5090"
 
 
 def test_recent_search_params_use_arr_style_feed_types() -> None:
@@ -73,11 +109,11 @@ def test_recent_search_params_use_arr_style_feed_types() -> None:
         "query": "",
         "type": "movie",
         "limit": 500,
-        "categories": "2000",
+        "categories": "2010,2030,2040,2045,2050,2070,2080,2090",
     }
     assert tv_params == {
         "query": "",
         "type": "tvsearch",
         "limit": 250,
-        "categories": "5000",
+        "categories": "5010,5020,5030,5040,5045,5050,5080,5090",
     }

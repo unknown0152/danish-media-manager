@@ -12,7 +12,7 @@ def test_network_analyzer_summarizes_prowlarr_fanout_without_urls() -> None:
                 "eventType": "indexerRss",
                 "data": {
                     "host": "danish-media-manager",
-                    "categories": "2000",
+                    "categories": "2040,2045,2050",
                     "queryType": "search",
                     "query": "",
                     "limit": "500",
@@ -30,7 +30,7 @@ def test_network_analyzer_summarizes_prowlarr_fanout_without_urls() -> None:
                 "eventType": "indexerRss",
                 "data": {
                     "host": "danish-media-manager",
-                    "categories": "5000",
+                    "categories": "5030,5040,5045",
                     "queryType": "search",
                     "query": "",
                     "limit": "500",

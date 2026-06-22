@@ -1679,9 +1679,35 @@ def _media_type_from_categories(categories: str | None) -> str:
     if not categories:
         return "unknown"
     parts = {part.strip() for part in categories.split(",")}
-    if "2000" in parts:
+    movie_categories = {
+        "2000",
+        "2010",
+        "2020",
+        "2030",
+        "2040",
+        "2045",
+        "2050",
+        "2060",
+        "2070",
+        "2080",
+        "2090",
+    }
+    tv_categories = {
+        "5000",
+        "5010",
+        "5020",
+        "5030",
+        "5040",
+        "5045",
+        "5050",
+        "5060",
+        "5070",
+        "5080",
+        "5090",
+    }
+    if parts & movie_categories:
         return "movie"
-    if "5000" in parts:
+    if parts & tv_categories:
         return "tv"
     return "unknown"
 
