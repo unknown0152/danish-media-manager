@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Danish Media Manager</title>
     <meta name="color-scheme" content="dark light" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=terminal-pro-menu-2" />
   </head>
   <body>
     <div class="app-shell dmm-shell">
@@ -21,37 +21,37 @@
         </div>
 
         <nav class="side-nav" aria-label="Primary navigation">
-          <button class="nav-item is-active" type="button" data-view-target="dashboard">
+          <a class="nav-item is-active" href="#dashboard" data-view-target="dashboard">
             <span class="nav-icon" aria-hidden="true">01</span>
             <span>Dashboard</span>
-          </button>
-          <button class="nav-item" type="button" data-view-target="wanted">
+          </a>
+          <a class="nav-item" href="#wanted" data-view-target="wanted">
             <span class="nav-icon" aria-hidden="true">02</span>
             <span>Wanted</span>
             <strong id="navWantedBadge" class="nav-badge">0</strong>
-          </button>
-          <button class="nav-item" type="button" data-view-target="search">
+          </a>
+          <a class="nav-item" href="#search" data-view-target="search">
             <span class="nav-icon" aria-hidden="true">03</span>
             <span>Search</span>
-          </button>
-          <button class="nav-item" type="button" data-view-target="downloads">
+          </a>
+          <a class="nav-item" href="#downloads" data-view-target="downloads">
             <span class="nav-icon" aria-hidden="true">04</span>
             <span>Downloads</span>
             <strong id="navDownloadBadge" class="nav-badge">Idle</strong>
-          </button>
-          <button class="nav-item" type="button" data-view-target="indexers">
+          </a>
+          <a class="nav-item" href="#indexers" data-view-target="indexers">
             <span class="nav-icon" aria-hidden="true">05</span>
             <span>Indexers</span>
             <strong id="navIndexerBadge" class="nav-badge">--</strong>
-          </button>
-          <button class="nav-item" type="button" data-view-target="health">
+          </a>
+          <a class="nav-item" href="#health" data-view-target="health">
             <span class="nav-icon" aria-hidden="true">06</span>
             <span>Health</span>
-          </button>
-          <button class="nav-item" type="button" data-view-target="activity">
+          </a>
+          <a class="nav-item" href="#activity" data-view-target="activity">
             <span class="nav-icon" aria-hidden="true">07</span>
             <span>Activity</span>
-          </button>
+          </a>
         </nav>
 
         <div class="sidebar-tools">
@@ -109,22 +109,22 @@
                 </div>
               </div>
               <div class="action-grid">
-                <button class="action-tile" type="button" data-view-target="search">
+                <a class="action-tile" href="#search" data-view-target="search">
                   <span>Search</span>
                   <strong>Find release</strong>
-                </button>
-                <button class="action-tile" type="button" data-view-target="wanted">
+                </a>
+                <a class="action-tile" href="#wanted" data-view-target="wanted">
                   <span>Wanted</span>
                   <strong>Review queue</strong>
-                </button>
-                <button class="action-tile" type="button" data-view-target="downloads">
+                </a>
+                <a class="action-tile" href="#downloads" data-view-target="downloads">
                   <span>AltMount</span>
                   <strong>Inspect transfers</strong>
-                </button>
-                <button class="action-tile" type="button" data-view-target="health">
+                </a>
+                <a class="action-tile" href="#health" data-view-target="health">
                   <span>Health</span>
                   <strong>Diagnostics</strong>
-                </button>
+                </a>
               </div>
             </section>
 
@@ -190,7 +190,7 @@
                   <span class="eyebrow">Wanted Board</span>
                   <h3>Request Queue</h3>
                 </div>
-                <button class="btn" type="button" data-view-target="search">New search</button>
+                <a class="btn" href="#search" data-view-target="search">New search</a>
               </div>
               <div id="requests" class="requests list-stack"></div>
             </section>
@@ -346,6 +346,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=terminal-pro-menu-2"></script>
   </body>
 </html>

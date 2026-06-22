@@ -92,9 +92,6 @@ function setActiveView(view) {
   });
   viewTitleEl.textContent = viewCopy[nextView].title;
   viewSubtitleEl.textContent = viewCopy[nextView].subtitle;
-  if (window.location.hash !== `#${nextView}`) {
-    window.history.replaceState(null, "", `#${nextView}`);
-  }
 }
 
 document.addEventListener("click", (event) => {
@@ -102,8 +99,20 @@ document.addEventListener("click", (event) => {
   if (!target) {
     return;
   }
-  setActiveView(target.dataset.viewTarget);
+  event.preventDefault();
+  const nextHash = `#${target.dataset.viewTarget}`;
+  if (window.location.hash === nextHash) {
+    setActiveView(target.dataset.viewTarget);
+    return;
+  }
+  window.location.hash = nextHash;
 });
+
+window.addEventListener("hashchange", () => {
+  setActiveView(window.location.hash.replace("#", "") || "dashboard");
+});
+
+window.setActiveView = setActiveView;
 
 document.querySelectorAll(".segmented button").forEach((button) => {
   button.addEventListener("click", () => {
