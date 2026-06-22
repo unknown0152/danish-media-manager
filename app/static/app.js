@@ -43,6 +43,13 @@ const targetPathInput = document.querySelector("#targetPath");
 const acceptedOnlyInput = document.querySelector("#acceptedOnly");
 const viewTitleEl = document.querySelector("#viewTitle");
 const viewSubtitleEl = document.querySelector("#viewSubtitle");
+const navWantedBadgeEl = document.querySelector("#navWantedBadge");
+const navDownloadBadgeEl = document.querySelector("#navDownloadBadge");
+const navIndexerBadgeEl = document.querySelector("#navIndexerBadge");
+const dashboardRequestsEl = document.querySelector("#dashboardRequests");
+const dashboardDownloadsEl = document.querySelector("#dashboardDownloads");
+const dashboardIndexersEl = document.querySelector("#dashboardIndexers");
+const dashboardGrabsEl = document.querySelector("#dashboardGrabs");
 
 const viewCopy = {
   dashboard: {
@@ -80,7 +87,7 @@ function setActiveView(view) {
   document.querySelectorAll("[data-view]").forEach((panel) => {
     panel.classList.toggle("is-active", panel.dataset.view === nextView);
   });
-  document.querySelectorAll("[data-view-target]").forEach((button) => {
+  document.querySelectorAll(".nav-item[data-view-target]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.viewTarget === nextView);
   });
   viewTitleEl.textContent = viewCopy[nextView].title;
@@ -90,8 +97,12 @@ function setActiveView(view) {
   }
 }
 
-document.querySelectorAll("[data-view-target]").forEach((button) => {
-  button.addEventListener("click", () => setActiveView(button.dataset.viewTarget));
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-view-target]");
+  if (!target) {
+    return;
+  }
+  setActiveView(target.dataset.viewTarget);
 });
 
 document.querySelectorAll(".segmented button").forEach((button) => {
@@ -514,8 +525,19 @@ function renderDownloads(downloads) {
   queueMetricEl.textContent = downloads.status || "Unknown";
   queueMetricCardEl.textContent = downloads.status || "Unknown";
   queueMetricMiniEl.textContent = downloads.status || "Unknown";
+  navDownloadBadgeEl.textContent = downloads.status || "Unknown";
   queueMetricSubEl.textContent = `${queueCount} queued · ${historyCount} history · ${downloads.speed || "0 B/s"}`;
   downloadsEl.innerHTML = `${header}${queue}${history}`;
+  dashboardDownloadsEl.innerHTML = `
+    <div class="dashboard-row">
+      <strong>${escapeHtml(downloads.status || "Unknown")}</strong>
+      <span>${queueCount} queued · ${historyCount} history</span>
+    </div>
+    <div class="dashboard-row">
+      <strong>${escapeHtml(downloads.speed || "0")}</strong>
+      <span>Current AltMount speed</span>
+    </div>
+  `;
 }
 
 function renderDownloadGroup(label, items) {
@@ -591,8 +613,22 @@ async function refreshGrabs() {
         `
       )
       .join("");
+    dashboardGrabsEl.innerHTML = grabs.length
+      ? grabs
+          .slice(0, 5)
+          .map(
+            (grab) => `
+              <button class="dashboard-row text-row" type="button" data-view-target="activity">
+                <strong>${escapeHtml(grab.title)}</strong>
+                <span>${escapeHtml(grab.created_at)}</span>
+              </button>
+            `
+          )
+          .join("")
+      : `<div class="dashboard-row"><strong>No grabs yet</strong><span>Recent grab history will appear here.</span></div>`;
   } catch (error) {
     grabsEl.innerHTML = `<div>History failed: ${escapeHtml(error.message)}</div>`;
+    dashboardGrabsEl.innerHTML = `<div class="dashboard-row"><strong>History failed</strong><span>${escapeHtml(error.message)}</span></div>`;
   }
 }
 
@@ -607,6 +643,7 @@ async function refreshIndexers() {
     indexerMetricEl.textContent = `${enabledCount}/${indexers.length}`;
     indexerMetricCardEl.textContent = `${enabledCount} / ${indexers.length}`;
     indexerMetricMiniEl.textContent = `${enabledCount} / ${indexers.length}`;
+    navIndexerBadgeEl.textContent = `${enabledCount}/${indexers.length}`;
     indexerMetricSubEl.textContent =
       failureCount > 0 ? `${failureCount} failing in Prowlarr` : "No active failures";
     indexersEl.innerHTML = indexers
@@ -620,10 +657,21 @@ async function refreshIndexers() {
         `;
       })
       .join("");
+    dashboardIndexersEl.innerHTML = `
+      <button class="dashboard-row" type="button" data-view-target="indexers">
+        <strong>${enabledCount} enabled</strong>
+        <span>${indexers.length} total indexers</span>
+      </button>
+      <button class="dashboard-row ${failureCount > 0 ? "bad" : "ok"}" type="button" data-view-target="health">
+        <strong>${failureCount > 0 ? `${failureCount} failing` : "No failures"}</strong>
+        <span>Prowlarr diagnostics</span>
+      </button>
+    `;
     renderProwlarrDiagnostics(diagnostics);
   } catch (error) {
     indexersEl.innerHTML = `<div>Indexers failed: ${escapeHtml(error.message)}</div>`;
     prowlarrHealthEl.innerHTML = "";
+    dashboardIndexersEl.innerHTML = `<div class="dashboard-row bad"><strong>Indexers failed</strong><span>${escapeHtml(error.message)}</span></div>`;
   }
 }
 
@@ -666,6 +714,7 @@ async function refreshRequests() {
     const grabbedCount = requests.filter((request) => request.status === "grabbed").length;
     requestMetricEl.textContent = String(requests.length);
     requestMetricCardEl.textContent = String(requests.length);
+    navWantedBadgeEl.textContent = String(wantedCount);
     requestMetricSubEl.textContent = `${wantedCount} wanted · ${grabbedCount} grabbed`;
     requestsEl.innerHTML = requests
       .map((request) => {
@@ -715,8 +764,24 @@ async function refreshRequests() {
     requestsEl.querySelectorAll("button[data-request-id]").forEach((button) => {
       button.addEventListener("click", () => grabBest(button.dataset.requestId));
     });
+    dashboardRequestsEl.innerHTML = requests.length
+      ? requests
+          .slice(0, 5)
+          .map((request) => {
+            const score =
+              request.best_score === null || request.best_score === undefined ? "" : ` · ${request.best_score}`;
+            return `
+              <button class="dashboard-row" type="button" data-view-target="wanted">
+                <strong>${escapeHtml(request.query)}</strong>
+                <span>${escapeHtml(request.status)}${score} · ${request.accepted}/${request.total} accepted</span>
+              </button>
+            `;
+          })
+          .join("")
+      : `<div class="dashboard-row"><strong>No requests</strong><span>Seerr and DMM requests will appear here.</span></div>`;
   } catch (error) {
     requestsEl.innerHTML = `<div>Requests failed: ${escapeHtml(error.message)}</div>`;
+    dashboardRequestsEl.innerHTML = `<div class="dashboard-row bad"><strong>Requests failed</strong><span>${escapeHtml(error.message)}</span></div>`;
   }
 }
 

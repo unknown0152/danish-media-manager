@@ -28,6 +28,7 @@
           <button class="nav-item" type="button" data-view-target="wanted">
             <span class="nav-icon" aria-hidden="true">02</span>
             <span>Wanted</span>
+            <strong id="navWantedBadge" class="nav-badge">0</strong>
           </button>
           <button class="nav-item" type="button" data-view-target="search">
             <span class="nav-icon" aria-hidden="true">03</span>
@@ -36,10 +37,12 @@
           <button class="nav-item" type="button" data-view-target="downloads">
             <span class="nav-icon" aria-hidden="true">04</span>
             <span>Downloads</span>
+            <strong id="navDownloadBadge" class="nav-badge">Idle</strong>
           </button>
           <button class="nav-item" type="button" data-view-target="indexers">
             <span class="nav-icon" aria-hidden="true">05</span>
             <span>Indexers</span>
+            <strong id="navIndexerBadge" class="nav-badge">--</strong>
           </button>
           <button class="nav-item" type="button" data-view-target="health">
             <span class="nav-icon" aria-hidden="true">06</span>
@@ -98,6 +101,33 @@
 
         <section class="view-panel is-active" data-view="dashboard">
           <div class="dashboard-layout">
+            <section class="desk-panel dashboard-command">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Command Center</span>
+                  <h3>Quick Actions</h3>
+                </div>
+              </div>
+              <div class="action-grid">
+                <button class="action-tile" type="button" data-view-target="search">
+                  <span>Search</span>
+                  <strong>Find release</strong>
+                </button>
+                <button class="action-tile" type="button" data-view-target="wanted">
+                  <span>Wanted</span>
+                  <strong>Review queue</strong>
+                </button>
+                <button class="action-tile" type="button" data-view-target="downloads">
+                  <span>AltMount</span>
+                  <strong>Inspect transfers</strong>
+                </button>
+                <button class="action-tile" type="button" data-view-target="health">
+                  <span>Health</span>
+                  <strong>Diagnostics</strong>
+                </button>
+              </div>
+            </section>
+
             <section class="desk-panel">
               <div class="section-head">
                 <div>
@@ -117,7 +147,37 @@
                 </div>
                 <strong id="requestMetric" class="counter-chip">0</strong>
               </div>
-              <div class="preview-note">Open the Wanted view for full request controls.</div>
+              <div id="dashboardRequests" class="dashboard-list"></div>
+            </section>
+
+            <section class="desk-panel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Transfers</span>
+                  <h3>Queue Snapshot</h3>
+                </div>
+              </div>
+              <div id="dashboardDownloads" class="dashboard-list"></div>
+            </section>
+
+            <section class="desk-panel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Indexers</span>
+                  <h3>Source Snapshot</h3>
+                </div>
+              </div>
+              <div id="dashboardIndexers" class="dashboard-list"></div>
+            </section>
+
+            <section class="desk-panel">
+              <div class="section-head">
+                <div>
+                  <span class="eyebrow">Activity</span>
+                  <h3>Recent Grabs</h3>
+                </div>
+              </div>
+              <div id="dashboardGrabs" class="dashboard-list"></div>
             </section>
           </div>
         </section>
