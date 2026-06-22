@@ -97,6 +97,8 @@ def test_raw_nfo_capabilities_are_recorded_for_future_enrichment() -> None:
     assert althub.nfo_id_source == "attr_guid"
     assert msgnews.nfo_endpoint == "getnfo"
     assert msgnews.nfo_id_source == "attr_guid"
-    assert slug.nfo_endpoint == "info"
-    assert slug.nfo_id_source == "hash_guid"
+    assert slug.details_endpoint == "details"
+    assert slug.prefer_json is True
+    assert slug.nfo_endpoint is None
+    assert "getnfo" in slug.unsupported_functions
     assert ninja.nfo_endpoint is None

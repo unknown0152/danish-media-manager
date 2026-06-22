@@ -10,9 +10,12 @@ class IndexerCapability:
     structured_audio: bool = False
     structured_language: bool = False
     structured_subs: bool = False
+    details_endpoint: str | None = None
+    prefer_json: bool = False
     nfo_endpoint: str | None = None
     nfo_id_source: str | None = None
     release_language_is_metadata: bool = False
+    unsupported_functions: tuple[str, ...] = ()
     notes: str = ""
 
 
@@ -45,19 +48,27 @@ CAPABILITIES: dict[str, IndexerCapability] = {
         notes="Search results can expose strong subtitle lists.",
     ),
     "althub": IndexerCapability(
+        details_endpoint="details",
         nfo_endpoint="getnfo",
         nfo_id_source="attr_guid",
         notes="No useful structured attrs; getnfo works with the newznab attr guid.",
     ),
     "msgnews": IndexerCapability(
+        details_endpoint="details",
         nfo_endpoint="getnfo",
         nfo_id_source="attr_guid",
         notes="No useful structured attrs; getnfo works with the newznab attr guid.",
     ),
     "drunkenslug": IndexerCapability(
-        nfo_endpoint="info",
-        nfo_id_source="hash_guid",
-        notes="JSON language is channel/feed language, not release language; info often returns no NFO.",
+        details_endpoint="details",
+        prefer_json=True,
+        unsupported_functions=("user", "music", "book", "comments", "getnfo"),
+        notes=(
+            "Caps exposes search/tvsearch/movie only. JSON details has IDs/groups/poster "
+            "metadata but no release audio/subs/language attrs. Channel language is not "
+            "release language. t=info returned no NFO for sampled releases; getnfo is unsupported. "
+            "Use JSON if calling DrunkenSlug directly because extended XML can be malformed."
+        ),
     ),
     "ninjacentral": IndexerCapability(
         notes="No useful structured language attrs observed; skip language enrichment.",
