@@ -144,7 +144,7 @@ function renderServiceStrip(status) {
 
 async function search(query) {
   if (!query) return;
-  resultsEl.innerHTML = "<p>Searching...</p>";
+  renderEmptyState("Searching", "DMM is querying Prowlarr and scoring releases against Danish/NORDiC rules.");
   try {
     const data = await api("/api/search", {
       method: "POST",
@@ -168,13 +168,13 @@ async function search(query) {
   } catch (error) {
     metadataEl.innerHTML = "";
     searchSummaryEl.innerHTML = "";
-    resultsEl.innerHTML = `<p>Search failed: ${escapeHtml(error.message)}</p>`;
+    renderEmptyState("Search failed", error.message, "bad");
   }
 }
 
 async function createRequest(query) {
   if (!query) return;
-  resultsEl.innerHTML = "<p>Creating request...</p>";
+  renderEmptyState("Creating request", "DMM is storing the request and checking for an immediate match.");
   try {
     const data = await api("/api/requests", {
       method: "POST",
@@ -200,7 +200,7 @@ async function createRequest(query) {
   } catch (error) {
     metadataEl.innerHTML = "";
     searchSummaryEl.innerHTML = "";
-    resultsEl.innerHTML = `<p>Request failed: ${escapeHtml(error.message)}</p>`;
+    renderEmptyState("Request failed", error.message, "bad");
   }
 }
 
@@ -327,14 +327,14 @@ function renderIndexerAttrs(release) {
 
 function renderResults() {
   if (!state.releases.length) {
-    resultsEl.innerHTML = "<p>No results.</p>";
+    renderEmptyState("No releases found", "No matching releases came back from the enabled indexers.");
     return;
   }
   const visibleReleases = state.acceptedOnly
     ? state.releases.filter((release) => release.decision?.grab_allowed === true)
     : state.releases;
   if (!visibleReleases.length) {
-    resultsEl.innerHTML = "<p>No accepted results for the current filters.</p>";
+    renderEmptyState("No accepted releases", "The current filter is hiding rejected results.");
     return;
   }
   resultsEl.innerHTML = "";
@@ -668,7 +668,7 @@ async function refreshRequests() {
 
 async function rerunRequestSearch(requestId) {
   try {
-    resultsEl.innerHTML = "<p>Searching stored request...</p>";
+    renderEmptyState("Searching request", "DMM is rerunning the stored request against current indexer results.");
     const data = await api(`/api/requests/${requestId}/search`, { method: "POST" });
     state.mediaType = data.request.media_type;
     state.releases = data.search.releases;
@@ -683,7 +683,7 @@ async function rerunRequestSearch(requestId) {
     renderResults();
     await refreshRequests();
   } catch (error) {
-    resultsEl.innerHTML = `<p>Stored request search failed: ${escapeHtml(error.message)}</p>`;
+    renderEmptyState("Stored request search failed", error.message, "bad");
   }
 }
 
@@ -711,6 +711,19 @@ function escapeHtml(value) {
     const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
     return map[char];
   });
+}
+
+function renderEmptyState(title, message, tone = "neutral") {
+  const className = tone === "bad" ? "empty-state bad" : "empty-state";
+  resultsEl.innerHTML = `
+    <div class="${className}">
+      <div>
+        <div class="empty-mark">DM</div>
+        <strong>${escapeHtml(title)}</strong>
+        <p class="muted">${escapeHtml(message)}</p>
+      </div>
+    </div>
+  `;
 }
 
 loadStatus();

@@ -26,9 +26,9 @@
         </div>
 
         <nav class="nav-list" aria-label="Primary navigation">
-          <a class="active" href="#searchForm"><span>Search</span><span>01</span></a>
-          <a href="#results"><span>Results</span><span>02</span></a>
-          <a href="#requests"><span>Requests</span><span>03</span></a>
+          <a class="active" href="#search"><span>Overview</span><span>01</span></a>
+          <a href="#searchForm"><span>Search Console</span><span>02</span></a>
+          <a href="#requests"><span>Wanted Board</span><span>03</span></a>
           <a href="#prowlarrHealth"><span>Health</span><span>04</span></a>
         </nav>
 
@@ -36,8 +36,8 @@
 
         <div class="sidebar-footer">
           <div class="mini-card">
-            <strong>DMM v0.36.1</strong>
-            <span class="panel-subtitle">Live search, request recovery, queue state, and import health.</span>
+            <strong>DMM Console</strong>
+            <span class="panel-subtitle">Search, monitor, grab, and repair from one local surface.</span>
           </div>
           <button id="refreshQueue" class="btn" type="button">Refresh queue</button>
         </div>
@@ -56,10 +56,10 @@
           </div>
         </div>
 
-        <section class="hero" id="search">
+        <section class="hero ops-header" id="search">
           <div class="hero-copy">
             <span class="eyebrow">Media Operations</span>
-            <h2>Search, request, and recover releases with less friction.</h2>
+            <h2>Danish release control center</h2>
             <p id="status">Checking services...</p>
             <div class="hero-actions">
               <button class="btn primary" type="submit" form="searchForm">Run live search</button>
@@ -68,11 +68,6 @@
           </div>
 
           <div class="hero-side">
-            <div class="mini-card">
-              <span class="eyebrow">Current State</span>
-              <strong>Live queue, import checks, and indexer health stay visible.</strong>
-              <span id="requestMetricSub" class="panel-subtitle">No request data yet</span>
-            </div>
             <div class="kpi-grid" aria-label="Quick stats">
               <div class="kpi"><span>Requests</span><strong id="requestMetric">0</strong></div>
               <div class="kpi"><span>Downloads</span><strong id="queueMetricMini">Idle</strong><small id="queueMetricSub">Waiting</small></div>
@@ -104,13 +99,21 @@
           </article>
         </section>
 
+        <div class="workspace-tabs" aria-label="Workspace sections">
+          <a href="#searchForm" class="active">Search Console</a>
+          <a href="#resultsPanel">Release Browser</a>
+          <a href="#requests">Wanted Board</a>
+          <a href="#downloads">Transfers</a>
+          <a href="#prowlarrHealth">Diagnostics</a>
+        </div>
+
         <section class="dashboard-grid">
           <div class="panel-stack">
             <section class="panel">
               <div class="section-head">
                 <div>
                   <span class="eyebrow">Interactive Search</span>
-                  <h3>Find the best release</h3>
+                  <h3>Search Console</h3>
                 </div>
                 <label class="filter-toggle pill">
                   <input id="acceptedOnly" type="checkbox" />
@@ -147,7 +150,7 @@
                   <button id="requestBest" class="btn" type="button">Request best</button>
                 </form>
 
-                <div class="input-note">Target-aware search with DMM scoring, release metadata, and AltMount handoff.</div>
+                <div class="input-note">Uses DMM scoring, trusted indexer metadata, target folders, and AltMount handoff.</div>
               </div>
             </section>
 
@@ -155,7 +158,7 @@
               <div class="section-head">
                 <div>
                   <span class="eyebrow">Release Browser</span>
-                  <h3>Results</h3>
+                  <h3>Ranked Results</h3>
                 </div>
                 <div class="pill-row">
                   <span class="pill">Score</span>
@@ -178,7 +181,7 @@
                     <div>
                       <div class="empty-mark">DM</div>
                       <strong>No active search</strong>
-                      <p class="muted">Search or open a stored request to inspect releases and compare score, quality, and indexer fit.</p>
+                      <p class="muted">Run a search or open a wanted request to compare score, quality, indexer metadata, and grab safety.</p>
                     </div>
                   </div>
                 </div>
